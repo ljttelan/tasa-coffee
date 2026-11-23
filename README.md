@@ -1,31 +1,49 @@
 # Tasa Coffee
 
-A standalone PHP and MySQL storefront based on the supplied Tasa Coffee mockup. It supports a product catalog, search and categories, a session cart, customer accounts and order history, stock-aware checkout, and role-based staff tools.
+Tasa Coffee is a storefront built with React, TypeScript, and Vite. Supabase provides PostgreSQL, authentication, row-level security, and transactional order functions. The Vercel-ready app is in [`frontend/`](./frontend). The PHP/MySQL files at the repository root are the original implementation and are not used by the Vercel deployment.
 
-## Requirements
+## Local development
 
-- PHP 8.0+ with PDO and `pdo_mysql`
-- MySQL 5.7+ or MariaDB 10.3+
-- Apache/Nginx configured to serve this directory over HTTPS in production
+Requirements: Node.js 22+ and a Supabase project.
 
-## Local setup (XAMPP)
-
-1. Place this project folder in your web root (for example, `C:\xampp\htdocs\TasaCoffee`).
-2. In phpMyAdmin, create and select a database named `tasa_coffee`, then import `schema.sql` from this folder.
-3. Configure the database connection. By default, the app uses `127.0.0.1`, database `tasa_coffee`, user `root`, and an empty password. For another setup, define `TASA_DB_HOST`, `TASA_DB_NAME`, `TASA_DB_USER`, and `TASA_DB_PASS` in the PHP/Apache environment. Create and select the database before importing the schema.
-4. Create the first admin account from a command prompt:
+1. Create a Supabase project.
+2. In the Supabase SQL Editor, run [`frontend/supabase/schema.sql`](./frontend/supabase/schema.sql).
+3. Copy `frontend/.env.example` to `frontend/.env.local` and set:
+   - `VITE_SUPABASE_URL` to the project URL.
+   - `VITE_SUPABASE_ANON_KEY` to the project's publishable/anon key. This key is safe for browser use only because database access is protected by RLS.
+4. Run the frontend:
 
    ```powershell
-   cd C:\xampp\htdocs\TasaCoffee
-   C:\xampp\php\php.exe create-admin.php "Shop Admin" admin@example.com "use-a-long-unique-password"
+   cd frontend
+   npm install
+   npm run dev
    ```
 
-5. Open `http://localhost/TasaCoffee/`.
+5. Register an account, confirm its email if email confirmation is enabled, then promote the first administrator in the Supabase SQL Editor:
 
-The admin can add products, archive products, review returns, and assign staff roles. New signups are customer accounts. Staff can manage orders; fulfillment accounts can update non-terminal order statuses.
+   ```sql
+   update public.profiles
+   set role = 'admin'
+   where email = 'admin@example.com';
+   ```
 
-## Deployment
+   Never put a Supabase service-role key in the frontend or in a `VITE_` variable.
 
-Create a MySQL database in your hosting control panel, upload this folder to a PHP host, and import `schema.sql` into that database. Set the four `TASA_DB_*` environment variables in the host's PHP configuration. Run `create-admin.php` from the host's CLI; do not make admin creation a public web page. Serve the app over HTTPS and use a unique database password. Checkout and card/GCash options are demo-only and do not process real payments.
+## Vercel deployment
 
-The database schema seeds the sample products once when imported into a new database. Re-importing the file will add the sample rows again.
+1. Import `ljttelan/tasa-coffee` into Vercel.
+2. Set the project **Root Directory** to `frontend`. Vercel should detect Vite; use `npm run build` and `dist` if prompted.
+3. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` as Vercel environment variables for Preview and Production.
+4. Deploy, then add the resulting Vercel URL to Supabase Auth's allowed redirect URLs. Set the production site URL there as well.
+
+Vercel automatically builds future commits pushed to the connected GitHub branch. Database authorization is enforced by the SQL policies and RPCs, not by hiding the browser anon key.
+
+## App features
+
+- Product search, categories, sorting, cart, and checkout
+- Supabase Auth accounts and order history
+- Transactional checkout with stock locking and server-side price calculation
+- Customer cancellation and return requests
+- Role-based order, inventory, customer, and sales-report screens
+
+Payment options are mock only; no real payment is processed.
