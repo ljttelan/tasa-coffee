@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
@@ -83,6 +83,10 @@ function App() {
   const [orders, setOrders] = useState<OrderView[]>([])
   const [customers, setCustomers] = useState<CustomerView[]>([])
   const [cart, setCart] = useState<CartLine[]>(storedCart.cart)
+  const [quickAddProduct, setQuickAddProduct] = useState<Product | null>(null)
+  const [quickAddOption, setQuickAddOption] = useState('')
+  const [quickAddQuantity, setQuickAddQuantity] = useState(1)
+  const quickAddDialog = useRef<HTMLDialogElement>(null)
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState<'All' | Category>('All')
   const [sort, setSort] = useState<'name' | 'low' | 'high'>('name')
@@ -200,6 +204,15 @@ function App() {
   const subtotal = cartEntries.reduce((total, item) => total + item.unitPrice * item.quantity, 0)
   const deliveryFee = subtotal === 0 || subtotal >= 1000 ? 0 : 60
   const total = subtotal + deliveryFee
+  const quickAddRemaining = quickAddProduct
+    ? Math.max(
+        0,
+        quickAddProduct.stock -
+          cart
+            .filter((line) => line.productId === quickAddProduct.id)
+            .reduce((count, line) => count + line.quantity, 0),
+      )
+    : 0
 
   const refreshProducts = async () => {
     if (!supabase) return
@@ -271,13 +284,27 @@ function App() {
       })
   }, [profile?.role, page, staffTab, orders])
 
-  const addToCart = (product: Product, option: string) => {
-    const quantity = cart
+  const openQuickAdd = (product: Product) => {
+    const dialog = quickAddDialog.current
+    if (dialog && !dialog.open) dialog.showModal()
+    setQuickAddProduct(product)
+    setQuickAddOption(optionsFor(product.category)[0])
+    setQuickAddQuantity(1)
+    setError('')
+  }
+
+  const closeQuickAdd = () => {
+    quickAddDialog.current?.close()
+    setQuickAddProduct(null)
+  }
+
+  const addToCart = (product: Product, option: string, quantityToAdd: number) => {
+    const quantityInCart = cart
       .filter((line) => line.productId === product.id)
       .reduce((count, line) => count + line.quantity, 0)
-    if (quantity >= product.stock) {
+    if (quantityToAdd < 1 || quantityInCart + quantityToAdd > product.stock) {
       setError(`Only ${product.stock} ${product.name} available.`)
-      return
+      return false
     }
     setCart((current) => {
       const existing = current.find(
@@ -285,12 +312,13 @@ function App() {
       )
       return existing
         ? current.map((line) =>
-            line === existing ? { ...line, quantity: line.quantity + 1 } : line,
+            line === existing ? { ...line, quantity: line.quantity + quantityToAdd } : line,
           )
-        : [...current, { productId: product.id, option, quantity: 1 }]
+        : [...current, { productId: product.id, option, quantity: quantityToAdd }]
     })
     setError('')
-    setNotice('Added to your cart.')
+    setNotice(`${quantityToAdd} × ${product.name} added to your cart.`)
+    return true
   }
 
   const updateCart = (key: CartLine, quantity: number) => {
@@ -674,7 +702,7 @@ function App() {
               {loading ? <p className="empty-state">Connecting to Tasa Coffee…</p> : (
                 <div className="product-grid">
                   {visibleProducts.map((product) => (
-                    <ProductCard key={product.id} product={product} onAdd={addToCart} busy={busy} />
+                    <ProductCard key={product.id} product={product} onAdd={openQuickAdd} busy={busy} />
                   ))}
                   {visibleProducts.length === 0 && <p className="empty-state">No products match your search.</p>}
                 </div>
@@ -799,6 +827,99 @@ function App() {
         )}
       </main>
 
+      <dialog
+        ref={quickAddDialog}
+        className="quick-add-dialog"
+        aria-labelledby="quick-add-title"
+        aria-describedby="quick-add-description"
+        onClose={() => setQuickAddProduct(null)}
+      >
+        {quickAddProduct && (
+          <>
+            <div className="quick-add-heading">
+              <div>
+                <span className="product-category">{quickAddProduct.category}</span>
+                <h2 id="quick-add-title">{quickAddProduct.name}</h2>
+              </div>
+              <button
+                type="button"
+                className="quick-add-close"
+                aria-label="Close"
+                onClick={closeQuickAdd}
+              >
+                ×
+              </button>
+            </div>
+            <p id="quick-add-description" className="muted">{quickAddProduct.description}</p>
+            <div className="quick-add-controls">
+              <label className="option-label" htmlFor="quick-add-option">
+                Choose an option
+                <select
+                  id="quick-add-option"
+                  value={quickAddOption}
+                  autoFocus
+                  onChange={(event) => setQuickAddOption(event.target.value)}
+                  disabled={optionsFor(quickAddProduct.category).length === 1}
+                >
+                  {optionsFor(quickAddProduct.category).map((option) => (
+                    <option key={option}>{option}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="quick-add-quantity">
+                <span>Quantity</span>
+                <div className="quantity-control">
+                  <button
+                    type="button"
+                    aria-label="Decrease quantity"
+                    disabled={quickAddQuantity <= 1}
+                    onClick={() => setQuickAddQuantity((quantity) => quantity - 1)}
+                  >
+                    −
+                  </button>
+                  <span aria-live="polite">{quickAddQuantity}</span>
+                  <button
+                    type="button"
+                    aria-label="Increase quantity"
+                    disabled={quickAddQuantity >= quickAddRemaining}
+                    onClick={() => setQuickAddQuantity((quantity) => quantity + 1)}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+              <div className="quick-add-summary">
+                <span className="muted">
+                  {quickAddRemaining > 0
+                    ? `${quickAddRemaining} available`
+                    : 'No additional stock available'}
+                </span>
+                <strong>
+                  Total: {money(optionPrice(quickAddProduct, quickAddOption) * quickAddQuantity)}
+                </strong>
+              </div>
+            </div>
+            <div className="quick-add-actions">
+              <button type="button" className="button secondary" onClick={closeQuickAdd}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="button"
+                disabled={quickAddQuantity > quickAddRemaining}
+                onClick={() => {
+                  if (quickAddProduct && addToCart(quickAddProduct, quickAddOption, quickAddQuantity)) {
+                    closeQuickAdd()
+                  }
+                }}
+              >
+                Add to cart
+              </button>
+            </div>
+          </>
+        )}
+      </dialog>
+
       <footer className="site-footer">
         <a className="brand" href="#" onClick={(event) => { event.preventDefault(); setPage('shop') }}>
           <span className="brand-mark" aria-hidden="true">☕</span><span>Tasa</span>
@@ -816,11 +937,9 @@ function ProductCard({
   busy,
 }: {
   product: Product
-  onAdd: (product: Product, option: string) => void
+  onAdd: (product: Product) => void
   busy: boolean
 }) {
-  const [option, setOption] = useState(optionsFor(product.category)[0])
-  const options = optionsFor(product.category)
   return (
     <article className="product-card">
       {product.image_url
@@ -831,16 +950,10 @@ function ProductCard({
       <span className="product-category">{product.category}</span>
       <h3>{product.name}</h3>
       <p className="muted">{product.description}</p>
-      {options.length > 1 && <label className="option-label">
-        Option
-        <select value={option} onChange={(event) => setOption(event.target.value)}>
-          {options.map((item) => <option key={item}>{item}</option>)}
-        </select>
-      </label>}
       <div className="product-buy">
         <strong>{money(Number(product.price))}</strong>
         {product.stock > 0
-          ? <button className="button" disabled={busy} onClick={() => onAdd(product, option)}>Add to cart</button>
+          ? <button className="button" disabled={busy} onClick={() => onAdd(product)}>Add to cart</button>
           : <span className="muted">Sold out</span>}
       </div>
     </article>
