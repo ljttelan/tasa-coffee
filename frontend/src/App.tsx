@@ -77,7 +77,7 @@ function App() {
   const [storedCart] = useState(readInitialCart)
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [page, setPage] = useState<Page>('shop')
+  const [page, setPage] = useState<Page>('account')
   const [staffTab, setStaffTab] = useState<StaffTab>('Orders')
   const [products, setProducts] = useState<Product[]>([])
   const [orders, setOrders] = useState<OrderView[]>([])
@@ -151,6 +151,7 @@ function App() {
 
     void supabase.auth.getSession().then(({ data, error: requestError }) => {
       if (requestError) showError(requestError)
+      if (data.session) setPage('shop')
       void applySession(data.session)
     })
     const {
@@ -358,7 +359,7 @@ function App() {
     await runAction(async () => {
       const { error: requestError } = await client.auth.signInWithPassword({ email, password })
       if (requestError) throw requestError
-      setPage('account')
+      setPage('shop')
     }, 'Signed in.')
   }
 
@@ -382,7 +383,7 @@ function App() {
         options: { data: { name } },
       })
       if (requestError) throw requestError
-      setPage('account')
+      setPage(data.session ? 'shop' : 'account')
       confirmationRequired = !data.session
     }, 'Account created.')
     if (confirmationRequired) setNotice('Check your email to confirm your new account before signing in.')
@@ -394,7 +395,7 @@ function App() {
     await runAction(async () => {
       const { error: requestError } = await client.auth.signOut()
       if (requestError) throw requestError
-      setPage('shop')
+      setPage('account')
       setProfile(null)
       setOrders([])
     }, 'Signed out.')
@@ -561,6 +562,7 @@ function App() {
           ? right.price - left.price
           : left.name.localeCompare(right.name),
     )
+  const currentPage = session ? page : 'account'
   const staffTabs: StaffTab[] =
     profile?.role === 'admin'
       ? ['Orders', 'Inventory', 'Customers', 'Reports']
@@ -644,20 +646,24 @@ function App() {
   return (
     <>
       <header className="site-header">
-        <a className="brand" href="#" onClick={(event) => { event.preventDefault(); setPage('shop') }}>
+        <a className="brand" href="#" onClick={(event) => { event.preventDefault(); setPage(session ? 'shop' : 'account') }}>
           <span className="brand-mark" aria-hidden="true">☕</span>
           <span>Tasa<small>Coffee, made local</small></span>
         </a>
         <nav aria-label="Main navigation">
-          <button className="nav-link" onClick={() => setPage('shop')}>Shop</button>
-          <button className="nav-link" onClick={() => setPage('cart')}>Cart <span className="cart-count">{cartCount}</span></button>
-          {profile && <button className="nav-link" onClick={() => setPage('account')}>Account</button>}
-          {profile && profile.role !== 'customer' && (
-            <button className="nav-link" onClick={() => setPage('staff')}>Staff</button>
+          {session ? (
+            <>
+              <button className="nav-link" onClick={() => setPage('shop')}>Shop</button>
+              <button className="nav-link" onClick={() => setPage('cart')}>Cart <span className="cart-count">{cartCount}</span></button>
+              <button className="nav-link" onClick={() => setPage('account')}>Account</button>
+              {profile && profile.role !== 'customer' && (
+                <button className="nav-link" onClick={() => setPage('staff')}>Staff</button>
+              )}
+              <button className="nav-link" disabled={busy} onClick={() => void signOut()}>Sign out</button>
+            </>
+          ) : (
+            <button className="nav-link" onClick={() => setPage('account')}>Log in</button>
           )}
-          {profile
-            ? <button className="nav-link" disabled={busy} onClick={() => void signOut()}>Sign out</button>
-            : <button className="nav-link" onClick={() => setPage('account')}>Log in</button>}
         </nav>
       </header>
 
@@ -671,7 +677,7 @@ function App() {
           </div>
         )}
 
-        {page === 'shop' && (
+        {currentPage === 'shop' && (
           <>
             <section className="hero">
               <div className="hero-copy">
@@ -711,7 +717,7 @@ function App() {
           </>
         )}
 
-        {page === 'cart' && (
+        {currentPage === 'cart' && (
           <section className="section narrow">
             <span className="eyebrow">YOUR ORDER</span><h1>Your cart</h1>
             {cartEntries.length === 0 ? (
@@ -736,7 +742,7 @@ function App() {
           </section>
         )}
 
-        {page === 'checkout' && (
+        {currentPage === 'checkout' && (
           <section className="section narrow">
             <span className="eyebrow">ALMOST THERE</span><h1>Checkout</h1>
             {!profile ? <p>Please sign in to check out.</p> : cartEntries.length === 0 ? (
@@ -756,12 +762,13 @@ function App() {
           </section>
         )}
 
-        {page === 'account' && (
+        {currentPage === 'account' && (
           <section className="section narrow">
             <span className="eyebrow">WELCOME TO TASA</span>
             {!profile ? (
               <>
                 <h1>Your account</h1>
+                <p className="muted">Log in or create an account to visit the storefront.</p>
                 <div className="auth-grid">
                   <form className="form-card" onSubmit={(event) => void signIn(event)}>
                     <h2>Log in</h2>
@@ -788,7 +795,7 @@ function App() {
           </section>
         )}
 
-        {page === 'staff' && (
+        {currentPage === 'staff' && (
           <section className="section">
             {!profile || profile.role === 'customer' ? (
               <><h1>Staff dashboard</h1><p className="muted">Sign in with a staff account to access this area.</p></>
@@ -921,7 +928,7 @@ function App() {
       </dialog>
 
       <footer className="site-footer">
-        <a className="brand" href="#" onClick={(event) => { event.preventDefault(); setPage('shop') }}>
+        <a className="brand" href="#" onClick={(event) => { event.preventDefault(); setPage(session ? 'shop' : 'account') }}>
           <span className="brand-mark" aria-hidden="true">☕</span><span>Tasa</span>
         </a>
         <span>Filipino coffee, one cup at a time.</span>
