@@ -651,7 +651,7 @@ function App() {
   )
 
   return (
-    <>
+    <div className={`app-shell ${currentPage === 'staff' ? 'staff-shell' : 'customer-shell'}`}>
       <header className="site-header">
         <a className="brand" href="#" onClick={(event) => { event.preventDefault(); setPage(session ? 'shop' : 'account') }}>
           <span className="brand-mark" aria-hidden="true">☕</span>
@@ -770,7 +770,7 @@ function App() {
         )}
 
         {currentPage === 'account' && (
-          <section className="section narrow">
+          <section className={`section narrow ${!profile ? 'auth-section' : ''}`}>
             <span className="eyebrow">WELCOME TO TASA</span>
             {!profile ? (
               <>
@@ -781,7 +781,7 @@ function App() {
                     : 'Join Tasa to browse the menu and place an order.'}
                 </p>
                 {authMode === 'login' ? (
-                  <form className="form-card" onSubmit={(event) => void signIn(event)}>
+                  <form className="form-card auth-card" onSubmit={(event) => void signIn(event)}>
                     <h2>Log in</h2>
                     <label>Email<input type="email" name="email" autoComplete="email" required /></label>
                     <label>Password<input type="password" name="password" autoComplete="current-password" required /></label>
@@ -794,7 +794,7 @@ function App() {
                     </p>
                   </form>
                 ) : (
-                  <form className="form-card" onSubmit={(event) => void signUp(event)}>
+                  <form className="form-card auth-card" onSubmit={(event) => void signUp(event)}>
                     <h2>Create account</h2>
                     <label>Name<input name="name" autoComplete="name" maxLength={120} required /></label>
                     <label>Email<input type="email" name="email" autoComplete="email" required /></label>
@@ -958,7 +958,7 @@ function App() {
         <span>Filipino coffee, one cup at a time.</span>
         <span>Demo checkout only · No real payment processing</span>
       </footer>
-    </>
+    </div>
   )
 }
 
