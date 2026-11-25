@@ -913,7 +913,6 @@ function App() {
                           <span className="payment-option-mark" aria-hidden="true">G</span>
                           <span className="payment-option-copy">
                             <strong>GCash</strong>
-                            <small>Demo selection · no payment processed</small>
                           </span>
                         </label>
                         <label className="payment-option">
@@ -921,7 +920,6 @@ function App() {
                           <span className="payment-option-mark" aria-hidden="true">CC</span>
                           <span className="payment-option-copy">
                             <strong>Credit or debit card</strong>
-                            <small>No card details are requested</small>
                           </span>
                         </label>
                         <label className="payment-option">
@@ -929,7 +927,6 @@ function App() {
                           <span className="payment-option-mark payment-option-mark-text" aria-hidden="true">COD</span>
                           <span className="payment-option-copy">
                             <strong>Cash on delivery</strong>
-                            <small>Payment choice saved with this demo order</small>
                           </span>
                         </label>
                       </div>
