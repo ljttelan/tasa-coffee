@@ -684,7 +684,7 @@ function App() {
       <header className="site-header">
         <a className="brand" href="#" onClick={(event) => { event.preventDefault(); setPage(session ? 'shop' : 'account') }}>
           <span className="brand-mark" aria-hidden="true">☕</span>
-          <span>Tasa<small>Coffee, made local</small></span>
+          <span>Tasa<small>Kape ng Pilipino, para sa bawat sandali.</small></span>
         </a>
         <nav aria-label="Main navigation">
           {session ? (
@@ -770,12 +770,9 @@ function App() {
           <>
             <section className="hero">
               <div className="hero-copy">
-                <span className="eyebrow">GOOD COFFEE. GOOD COMPANY.</span>
+                <span className="eyebrow">MASARAP NA KAPE. MAGANDANG SAMAHAN.</span>
                 <h1>Fresh from the roaster</h1>
                 <p>Filipino beans, comforting brews, and treats for the moments in between.</p>
-                <button className="button" onClick={() => document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })}>
-                  Shop the menu
-                </button>
               </div>
               <div className="hero-art" aria-hidden="true"><span>☕</span><b>Made with<br />mahal.</b></div>
             </section>
@@ -1273,7 +1270,7 @@ function App() {
         <a className="brand" href="#" onClick={(event) => { event.preventDefault(); setPage(session ? 'shop' : 'account') }}>
           <span className="brand-mark" aria-hidden="true">☕</span><span>Tasa</span>
         </a>
-        <span>Filipino coffee, one cup at a time.</span>
+        <span>Kape ng Pilipino, para sa bawat sandali.</span>
         <span>Demo checkout only · No real payment processing</span>
       </footer>
     </div>
