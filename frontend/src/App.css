@@ -158,8 +158,7 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid rgba(75,58,
 .full { width: 100%; }
 .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; }
 .product-card { display: flex; min-width: 0; flex-direction: column; gap: 8px; padding: 13px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
-.product-image { display: grid; width: 100%; height: 165px; place-items: center; border-radius: 11px; background: #ede9f2; object-fit: cover; }
-.product-placeholder { font-size: 4rem; }
+.product-image { display: block; width: 100%; height: 165px; border-radius: 11px; background: #ede9f2; object-fit: cover; }
 .product-category { margin-top: 4px; color: var(--purple); font-size: .72rem; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
 .product-card h3 { margin: 0; font-size: 1.1rem; }
 .product-card p { min-height: 2.8em; margin: 0 0 5px; font-size: .92rem; }

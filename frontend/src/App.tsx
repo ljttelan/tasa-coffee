@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Session } from '@supabase/supabase-js'
+import benguetArabicaPhoto from './assets/products/benguet-arabica.webp'
+import barakoDarkRoastPhoto from './assets/products/barako-dark-roast.webp'
+import sagadaLightRoastPhoto from './assets/products/sagada-light-roast.webp'
+import icedSpanishLattePhoto from './assets/products/iced-spanish-latte.webp'
+import calamansiColdBrewPhoto from './assets/products/calamansi-cold-brew.webp'
+import ubeLattePhoto from './assets/products/ube-latte.webp'
+import ensaymadaPhoto from './assets/products/ensaymada.webp'
+import tasaTumblerPhoto from './assets/products/tasa-tumbler.webp'
 import { supabase } from './lib/supabase'
 import type {
   Category,
@@ -23,6 +31,22 @@ type OrderView = Order & { items: OrderItem[]; customerEmail?: string }
 type CustomerView = Profile & { orderCount: number }
 
 const categories: Category[] = ['Beans', 'Brewed', 'Pastries', 'Merch']
+const productPhotos: Record<string, string> = {
+  'Benguet Arabica Beans': benguetArabicaPhoto,
+  'Barako Dark Roast': barakoDarkRoastPhoto,
+  'Sagada Light Roast': sagadaLightRoastPhoto,
+  'Iced Spanish Latte': icedSpanishLattePhoto,
+  'Calamansi Cold Brew': calamansiColdBrewPhoto,
+  'Ube Latte': ubeLattePhoto,
+  Ensaymada: ensaymadaPhoto,
+  'Tasa Tumbler': tasaTumblerPhoto,
+}
+const categoryPhotos: Record<Category, string> = {
+  Beans: barakoDarkRoastPhoto,
+  Brewed: icedSpanishLattePhoto,
+  Pastries: ensaymadaPhoto,
+  Merch: tasaTumblerPhoto,
+}
 const money = (amount: number) =>
   new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount)
 const getErrorMessage = (error: unknown) =>
@@ -971,13 +995,22 @@ function ProductCard({
   onAdd: (product: Product) => void
   busy: boolean
 }) {
+  const fallbackPhoto = productPhotos[product.name] ?? categoryPhotos[product.category]
+  const image = product.image_url || fallbackPhoto
   return (
     <article className="product-card">
-      {product.image_url
-        ? <img className="product-image" src={product.image_url} alt="" loading="lazy" />
-        : <div className="product-image product-placeholder" aria-hidden="true">
-            {product.category === 'Beans' ? '🫘' : product.category === 'Pastries' ? '🥐' : product.category === 'Merch' ? '🥤' : '☕'}
-          </div>}
+      <img
+        className="product-image"
+        src={image}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        onError={(event) => {
+          if (event.currentTarget.getAttribute('src') !== fallbackPhoto) {
+            event.currentTarget.src = fallbackPhoto
+          }
+        }}
+      />
       <span className="product-category">{product.category}</span>
       <h3>{product.name}</h3>
       <p className="muted">{product.description}</p>
