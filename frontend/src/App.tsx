@@ -958,7 +958,7 @@ function App() {
                       <strong>{money(total)}</strong>
                     </button>
                     <p className="checkout-demo-note">
-                      Demo checkout only. Your order is saved, but no payment is processed.
+                      No payment will be collected for this order.
                     </p>
                   </aside>
                 </form>
