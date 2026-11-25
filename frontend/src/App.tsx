@@ -1271,7 +1271,6 @@ function App() {
           <span className="brand-mark" aria-hidden="true">☕</span><span>Tasa</span>
         </a>
         <span>Kape ng Pilipino, para sa bawat sandali.</span>
-        <span>Demo checkout only · No real payment processing</span>
       </footer>
     </div>
   )
