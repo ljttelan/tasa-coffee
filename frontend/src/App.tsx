@@ -689,7 +689,6 @@ function App() {
         <nav aria-label="Main navigation">
           {session ? (
             <>
-              <button className="nav-link" onClick={() => setPage('shop')}>Shop</button>
               <button className="nav-link" onClick={() => setPage('cart')}>Cart <span className="cart-count">{cartCount}</span></button>
               {profile && profile.role !== 'customer' && (
                 <button className="nav-link" onClick={() => setPage('staff')}>Staff</button>
