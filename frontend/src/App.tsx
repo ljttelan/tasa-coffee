@@ -103,7 +103,7 @@ function App() {
   const [storedCart] = useState(readInitialCart)
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [page, setPage] = useState<Page>('account')
+  const [page, setPage] = useState<Page>('shop')
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
   const [staffTab, setStaffTab] = useState<StaffTab>('Orders')
   const [accountTab, setAccountTab] = useState<AccountTab>('Overview')
@@ -388,7 +388,7 @@ function App() {
     await runAction(async () => {
       const { error: requestError } = await client.auth.signInWithPassword({ email, password })
       if (requestError) throw requestError
-      setPage('shop')
+      setPage(cart.length > 0 ? 'checkout' : 'shop')
     }, 'Signed in.')
   }
 
@@ -413,7 +413,7 @@ function App() {
       })
       if (requestError) throw requestError
       if (data.session) {
-        setPage('shop')
+        setPage(cart.length > 0 ? 'checkout' : 'shop')
       } else {
         setPage('account')
         setAuthMode('login')
@@ -429,7 +429,7 @@ function App() {
     await runAction(async () => {
       const { error: requestError } = await client.auth.signOut()
       if (requestError) throw requestError
-      setPage('account')
+      setPage('shop')
       setAuthMode('login')
       setProfile(null)
       setOrders([])
@@ -440,6 +440,7 @@ function App() {
     event.preventDefault()
     const client = supabase
     if (!client || !session) {
+      setAuthMode('login')
       setPage('account')
       return
     }
@@ -601,7 +602,7 @@ function App() {
           ? right.price - left.price
           : left.name.localeCompare(right.name),
     )
-  const currentPage = session ? page : 'account'
+  const currentPage = page
   const pendingOrders = orders.filter((order) => order.status === 'Pending')
   const deliveredOrders = orders.filter((order) => order.status === 'Delivered')
   const accountOrders =
@@ -697,14 +698,14 @@ function App() {
   return (
     <div className={`app-shell ${currentPage === 'staff' ? 'staff-shell' : 'customer-shell'}`}>
       <header className="site-header">
-        <a className="brand" href="#" onClick={(event) => { event.preventDefault(); setPage(session ? 'shop' : 'account') }}>
+        <a className="brand" href="#" onClick={(event) => { event.preventDefault(); setPage('shop') }}>
           <span className="brand-mark" aria-hidden="true">☕</span>
           <span>Tasa<small>Kape ng Pilipino, para sa bawat sandali.</small></span>
         </a>
         <nav aria-label="Main navigation">
+          <button className="nav-link" onClick={() => setPage('cart')}>Cart <span className="cart-count">{cartCount}</span></button>
           {session ? (
             <>
-              <button className="nav-link" onClick={() => setPage('cart')}>Cart <span className="cart-count">{cartCount}</span></button>
               {profile && profile.role !== 'customer' && (
                 <button className="nav-link" onClick={() => setPage('staff')}>Staff</button>
               )}
@@ -767,7 +768,15 @@ function App() {
               </details>
             </>
           ) : (
-            <button className="nav-link" onClick={() => setPage('account')}>Log in</button>
+            <button
+              className="nav-link"
+              onClick={() => {
+                setAuthMode('login')
+                setPage('account')
+              }}
+            >
+              Log in
+            </button>
           )}
         </nav>
       </header>
@@ -838,7 +847,19 @@ function App() {
                   </div>
                 ))}
                 <Totals subtotal={subtotal} deliveryFee={deliveryFee} total={total} />
-                <button className="button full" onClick={() => setPage(profile ? 'checkout' : 'account')}>Continue to checkout</button>
+                <button
+                  className="button full"
+                  onClick={() => {
+                    if (session) {
+                      setPage('checkout')
+                    } else {
+                      setAuthMode('login')
+                      setPage('account')
+                    }
+                  }}
+                >
+                  Continue to checkout
+                </button>
               </>
             )}
           </section>
@@ -846,7 +867,20 @@ function App() {
 
         {currentPage === 'checkout' && (
           <section className="section checkout-page">
-            {!profile ? <p>Please sign in to check out.</p> : cartEntries.length === 0 ? (
+            {!session ? (
+              <>
+                <p>Please sign in to check out.</p>
+                <button
+                  className="button"
+                  onClick={() => {
+                    setAuthMode('login')
+                    setPage('account')
+                  }}
+                >
+                  Log in
+                </button>
+              </>
+            ) : !profile ? <p>Loading your account…</p> : cartEntries.length === 0 ? (
               <>
                 <span className="eyebrow">YOUR ORDER</span>
                 <h1>Checkout</h1>
@@ -991,8 +1025,8 @@ function App() {
                 <h1>{authMode === 'login' ? 'Log in to Tasa' : 'Create your account'}</h1>
                 <p className="muted">
                   {authMode === 'login'
-                    ? 'Sign in to continue to the storefront.'
-                    : 'Join Tasa to browse the menu and place an order.'}
+                    ? 'Sign in to place an order and manage your account.'
+                    : 'Create an account to place orders and track them.'}
                 </p>
                 {authMode === 'login' ? (
                   <form className="form-card auth-card" onSubmit={(event) => void signIn(event)}>
@@ -1339,7 +1373,7 @@ function App() {
       </dialog>
 
       <footer className="site-footer">
-        <a className="brand" href="#" onClick={(event) => { event.preventDefault(); setPage(session ? 'shop' : 'account') }}>
+        <a className="brand" href="#" onClick={(event) => { event.preventDefault(); setPage('shop') }}>
           <span className="brand-mark" aria-hidden="true">☕</span><span>Tasa</span>
         </a>
         <span>Kape ng Pilipino, para sa bawat sandali.</span>
