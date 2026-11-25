@@ -78,6 +78,7 @@ function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [page, setPage] = useState<Page>('account')
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
   const [staffTab, setStaffTab] = useState<StaffTab>('Orders')
   const [products, setProducts] = useState<Product[]>([])
   const [orders, setOrders] = useState<OrderView[]>([])
@@ -383,7 +384,12 @@ function App() {
         options: { data: { name } },
       })
       if (requestError) throw requestError
-      setPage(data.session ? 'shop' : 'account')
+      if (data.session) {
+        setPage('shop')
+      } else {
+        setPage('account')
+        setAuthMode('login')
+      }
       confirmationRequired = !data.session
     }, 'Account created.')
     if (confirmationRequired) setNotice('Check your email to confirm your new account before signing in.')
@@ -396,6 +402,7 @@ function App() {
       const { error: requestError } = await client.auth.signOut()
       if (requestError) throw requestError
       setPage('account')
+      setAuthMode('login')
       setProfile(null)
       setOrders([])
     }, 'Signed out.')
@@ -767,23 +774,40 @@ function App() {
             <span className="eyebrow">WELCOME TO TASA</span>
             {!profile ? (
               <>
-                <h1>Your account</h1>
-                <p className="muted">Log in or create an account to visit the storefront.</p>
-                <div className="auth-grid">
+                <h1>{authMode === 'login' ? 'Log in to Tasa' : 'Create your account'}</h1>
+                <p className="muted">
+                  {authMode === 'login'
+                    ? 'Sign in to continue to the storefront.'
+                    : 'Join Tasa to browse the menu and place an order.'}
+                </p>
+                {authMode === 'login' ? (
                   <form className="form-card" onSubmit={(event) => void signIn(event)}>
                     <h2>Log in</h2>
                     <label>Email<input type="email" name="email" autoComplete="email" required /></label>
                     <label>Password<input type="password" name="password" autoComplete="current-password" required /></label>
                     <button className="button full" disabled={busy}>Log in</button>
+                    <p className="auth-switch">
+                      New to Tasa?{' '}
+                      <button type="button" className="text-button" onClick={() => setAuthMode('signup')}>
+                        Create an account
+                      </button>
+                    </p>
                   </form>
+                ) : (
                   <form className="form-card" onSubmit={(event) => void signUp(event)}>
                     <h2>Create account</h2>
                     <label>Name<input name="name" autoComplete="name" maxLength={120} required /></label>
                     <label>Email<input type="email" name="email" autoComplete="email" required /></label>
                     <label>Password (8+ characters)<input type="password" name="password" autoComplete="new-password" minLength={8} maxLength={72} required /></label>
                     <button className="button full" disabled={busy}>Create account</button>
+                    <p className="auth-switch">
+                      Already have an account?{' '}
+                      <button type="button" className="text-button" onClick={() => setAuthMode('login')}>
+                        Sign in
+                      </button>
+                    </p>
                   </form>
-                </div>
+                )}
               </>
             ) : (
               <>
