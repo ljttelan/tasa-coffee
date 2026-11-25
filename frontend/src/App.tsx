@@ -24,6 +24,7 @@ import './App.css'
 
 type Page = 'shop' | 'cart' | 'checkout' | 'account' | 'staff'
 type StaffTab = 'Orders' | 'Inventory' | 'Customers' | 'Reports'
+type AccountTab = 'Overview' | 'Orders' | 'Profile details'
 type CartLine = { productId: string; option: string; quantity: number }
 type CartEntry = CartLine & { product: Product; unitPrice: number }
 type ProductDraft = Pick<Product, 'name' | 'category' | 'description' | 'price' | 'stock' | 'image_url'>
@@ -104,6 +105,7 @@ function App() {
   const [page, setPage] = useState<Page>('account')
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
   const [staffTab, setStaffTab] = useState<StaffTab>('Orders')
+  const [accountTab, setAccountTab] = useState<AccountTab>('Overview')
   const [products, setProducts] = useState<Product[]>([])
   const [orders, setOrders] = useState<OrderView[]>([])
   const [customers, setCustomers] = useState<CustomerView[]>([])
@@ -458,6 +460,7 @@ function App() {
       })
       if (requestError) throw requestError
       setCart([])
+      setAccountTab('Orders')
       setPage('account')
       await refreshProducts()
       await refreshOrders()
@@ -603,9 +606,9 @@ function App() {
         ? ['Orders', 'Customers', 'Reports']
         : ['Orders']
 
-  const renderOrders = (staffView: boolean) => (
+  const renderOrders = (staffView: boolean, orderList: OrderView[] = orders) => (
     <div className="order-list">
-      {orders.map((order) => (
+      {orderList.map((order) => (
         <article className="order-card" key={order.id}>
           <div className="order-heading">
             <strong>#{order.id.slice(0, 8).toUpperCase()}{staffView ? ` · ${order.customer_name}` : ''}</strong>
@@ -672,7 +675,7 @@ function App() {
           </div>
         </article>
       ))}
-      {orders.length === 0 && <p className="empty-state">No orders yet.</p>}
+      {orderList.length === 0 && <p className="empty-state">No orders yet.</p>}
     </div>
   )
 
@@ -688,11 +691,65 @@ function App() {
             <>
               <button className="nav-link" onClick={() => setPage('shop')}>Shop</button>
               <button className="nav-link" onClick={() => setPage('cart')}>Cart <span className="cart-count">{cartCount}</span></button>
-              <button className="nav-link" onClick={() => setPage('account')}>Account</button>
               {profile && profile.role !== 'customer' && (
                 <button className="nav-link" onClick={() => setPage('staff')}>Staff</button>
               )}
-              <button className="nav-link" disabled={busy} onClick={() => void signOut()}>Sign out</button>
+              <details className="account-menu">
+                <summary className="account-trigger" aria-label="Open account menu">
+                  <span className="account-avatar account-avatar-small" aria-hidden="true">
+                    {profile?.name.trim().charAt(0).toUpperCase() || 'A'}
+                  </span>
+                  <span className="account-trigger-copy">
+                    <strong>Account</strong>
+                    <small>{profile?.name.split(' ')[0] || 'Profile & orders'}</small>
+                  </span>
+                  <span className="account-chevron" aria-hidden="true">⌄</span>
+                </summary>
+                <div className="account-menu-panel">
+                  <div className="account-menu-identity">
+                    <span className="account-avatar" aria-hidden="true">
+                      {profile?.name.trim().charAt(0).toUpperCase() || 'A'}
+                    </span>
+                    <span>
+                      <strong>{profile?.name || 'My account'}</strong>
+                      <small>{profile?.email || 'Manage your Tasa account'}</small>
+                    </span>
+                  </div>
+                  <button
+                    className="account-menu-item"
+                    type="button"
+                    onClick={(event) => {
+                      setAccountTab('Overview')
+                      setPage('account')
+                      event.currentTarget.closest('details')?.removeAttribute('open')
+                    }}
+                  >
+                    My account
+                  </button>
+                  <button
+                    className="account-menu-item"
+                    type="button"
+                    onClick={(event) => {
+                      setAccountTab('Orders')
+                      setPage('account')
+                      event.currentTarget.closest('details')?.removeAttribute('open')
+                    }}
+                  >
+                    My orders
+                  </button>
+                  <button
+                    className="account-menu-item account-menu-signout"
+                    type="button"
+                    disabled={busy}
+                    onClick={(event) => {
+                      event.currentTarget.closest('details')?.removeAttribute('open')
+                      void signOut()
+                    }}
+                  >
+                    Sign out
+                  </button>
+                </div>
+              </details>
             </>
           ) : (
             <button className="nav-link" onClick={() => setPage('account')}>Log in</button>
@@ -918,8 +975,8 @@ function App() {
         )}
 
         {currentPage === 'account' && (
-          <section className={`section narrow ${!profile ? 'auth-section' : ''}`}>
-            <span className="eyebrow">WELCOME TO TASA</span>
+          <section className={`section ${profile ? 'account-page' : 'narrow auth-section'}`}>
+            {!profile && <span className="eyebrow">WELCOME TO TASA</span>}
             {!profile ? (
               <>
                 <h1>{authMode === 'login' ? 'Log in to Tasa' : 'Create your account'}</h1>
@@ -958,11 +1015,125 @@ function App() {
                 )}
               </>
             ) : (
-              <>
-                <h1>Hi, {profile.name}</h1>
-                <h2>Your orders</h2>
-                {renderOrders(false)}
-              </>
+              <div className="account-layout">
+                <aside className="account-sidebar">
+                  <div className="account-sidebar-identity">
+                    <span className="account-avatar account-avatar-large" aria-hidden="true">
+                      {profile.name.trim().charAt(0).toUpperCase() || 'A'}
+                    </span>
+                    <span className="account-sidebar-name">
+                      <strong>{profile.name}</strong>
+                      <small>{profile.email}</small>
+                    </span>
+                  </div>
+                  <nav className="account-side-nav" aria-label="Account sections">
+                    {(['Overview', 'Orders', 'Profile details'] as const).map((tab) => (
+                      <button
+                        key={tab}
+                        className={accountTab === tab ? 'active' : ''}
+                        type="button"
+                        aria-current={accountTab === tab ? 'page' : undefined}
+                        onClick={() => setAccountTab(tab)}
+                      >
+                        {tab}
+                      </button>
+                    ))}
+                  </nav>
+                  <button className="account-sidebar-signout" type="button" disabled={busy} onClick={() => void signOut()}>
+                    Sign out
+                  </button>
+                </aside>
+
+                <div className="account-content">
+                  <header className="account-content-heading">
+                    <span className="eyebrow">MY TASA ACCOUNT</span>
+                    <h1>{accountTab}</h1>
+                    <p className="muted">
+                      {accountTab === 'Overview'
+                        ? 'Your orders and account details, all in one place.'
+                        : accountTab === 'Orders'
+                          ? 'Track recent orders and manage eligible requests.'
+                          : 'The contact details connected to your Tasa account.'}
+                    </p>
+                  </header>
+
+                  {accountTab === 'Overview' && (
+                    <>
+                      <section className="account-welcome">
+                        <div>
+                          <span className="eyebrow">WELCOME BACK</span>
+                          <h2>{profile.name.split(' ')[0]}</h2>
+                          <p>Ready for your next cup? Browse the menu whenever you’re ready.</p>
+                        </div>
+                        <button className="button" type="button" onClick={() => setPage('shop')}>Shop the menu</button>
+                      </section>
+                      <div className="account-stats">
+                        <button className="account-stat" type="button" onClick={() => setAccountTab('Orders')}>
+                          <span>Total orders</span>
+                          <strong>{orders.length}</strong>
+                          <small>View order history</small>
+                        </button>
+                        <button className="account-stat" type="button" onClick={() => setAccountTab('Orders')}>
+                          <span>In progress</span>
+                          <strong>{orders.filter((order) => ['Pending', 'Packing', 'Out for delivery'].includes(order.status)).length}</strong>
+                          <small>See order updates</small>
+                        </button>
+                        <button className="account-stat" type="button" onClick={() => setAccountTab('Orders')}>
+                          <span>Delivered</span>
+                          <strong>{orders.filter((order) => order.status === 'Delivered').length}</strong>
+                          <small>Past deliveries</small>
+                        </button>
+                      </div>
+                      <section className="account-panel">
+                        <div className="account-panel-heading">
+                          <div>
+                            <span className="eyebrow">ORDER ACTIVITY</span>
+                            <h2>Recent orders</h2>
+                          </div>
+                          {orders.length > 0 && (
+                            <button className="text-button" type="button" onClick={() => setAccountTab('Orders')}>
+                              View all
+                            </button>
+                          )}
+                        </div>
+                        {renderOrders(false, orders.slice(0, 3))}
+                      </section>
+                    </>
+                  )}
+
+                  {accountTab === 'Orders' && (
+                    <section className="account-panel">
+                      <div className="account-panel-heading">
+                        <div>
+                          <span className="eyebrow">YOUR PURCHASES</span>
+                          <h2>Order history</h2>
+                        </div>
+                        <span className="account-order-count">{orders.length} {orders.length === 1 ? 'order' : 'orders'}</span>
+                      </div>
+                      {renderOrders(false)}
+                    </section>
+                  )}
+
+                  {accountTab === 'Profile details' && (
+                    <section className="account-panel">
+                      <div className="account-panel-heading">
+                        <div>
+                          <span className="eyebrow">ACCOUNT INFORMATION</span>
+                          <h2>Profile details</h2>
+                        </div>
+                      </div>
+                      <dl className="account-details-list">
+                        <div><dt>Full name</dt><dd>{profile.name}</dd></div>
+                        <div><dt>Email address</dt><dd>{profile.email}</dd></div>
+                        <div>
+                          <dt>Member since</dt>
+                          <dd>{new Date(profile.created_at).toLocaleDateString('en-PH', { month: 'long', year: 'numeric' })}</dd>
+                        </div>
+                      </dl>
+                    </section>
+                  )}
+                </div>
+              </div>
             )}
           </section>
         )}
