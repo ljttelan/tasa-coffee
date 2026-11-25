@@ -440,6 +440,8 @@ function App() {
       return
     }
     const form = new FormData(event.currentTarget)
+    const shippingAddress = String(form.get('shipping_address') ?? '').trim()
+    const billingAddress = String(form.get('billing_address') ?? '').trim() || shippingAddress
     const items: Json[] = cartEntries.map((item) => ({
       product_id: item.product.id,
       option: item.option,
@@ -449,8 +451,8 @@ function App() {
       const { data, error: requestError } = await client.rpc('place_order', {
         p_customer_name: String(form.get('name') ?? ''),
         p_phone: String(form.get('phone') ?? ''),
-        p_billing_address: String(form.get('billing_address') ?? ''),
-        p_shipping_address: String(form.get('shipping_address') ?? ''),
+        p_billing_address: billingAddress,
+        p_shipping_address: shippingAddress,
         p_payment_method: String(form.get('payment_method') ?? '') as Order['payment_method'],
         p_items: items,
       })
@@ -774,21 +776,143 @@ function App() {
         )}
 
         {currentPage === 'checkout' && (
-          <section className="section narrow">
-            <span className="eyebrow">ALMOST THERE</span><h1>Checkout</h1>
+          <section className="section checkout-page">
             {!profile ? <p>Please sign in to check out.</p> : cartEntries.length === 0 ? (
-              <><p className="muted">Your cart is empty.</p><button className="button" onClick={() => setPage('shop')}>Browse the menu</button></>
+              <>
+                <span className="eyebrow">YOUR ORDER</span>
+                <h1>Checkout</h1>
+                <p className="muted">Your cart is empty.</p>
+                <button className="button" onClick={() => setPage('shop')}>Browse the menu</button>
+              </>
             ) : (
-              <form className="form-card" onSubmit={(event) => void checkout(event)}>
-                <label>Full name<input name="name" required maxLength={120} defaultValue={profile.name} /></label>
-                <label>Phone<input name="phone" required maxLength={50} /></label>
-                <label>Billing address<input name="billing_address" required maxLength={500} /></label>
-                <label>Shipping address<input name="shipping_address" required maxLength={500} /></label>
-                <label>Payment method<select name="payment_method"><option>GCash (mock)</option><option>Card (mock)</option><option>Cash on delivery</option></select></label>
-                <p className="muted">Demo checkout only. No real payment is processed.</p>
-                <Totals subtotal={subtotal} deliveryFee={deliveryFee} total={total} />
-                <button className="button full" disabled={busy}>Place order</button>
-              </form>
+              <>
+                <div className="checkout-heading">
+                  <div>
+                    <span className="eyebrow">COMPLETE YOUR ORDER</span>
+                    <h1>Checkout</h1>
+                    <p className="muted">Add your delivery details and choose how you’d like to pay.</p>
+                  </div>
+                  <button className="button secondary small" type="button" onClick={() => setPage('cart')}>
+                    ← Back to cart
+                  </button>
+                </div>
+                <form className="checkout-layout" onSubmit={(event) => void checkout(event)}>
+                  <div className="checkout-details">
+                    <section className="checkout-card" aria-labelledby="checkout-delivery-title">
+                      <div className="checkout-card-heading">
+                        <span className="checkout-step-number">01</span>
+                        <div>
+                          <h2 id="checkout-delivery-title">Contact &amp; delivery</h2>
+                          <p className="muted">Where should we send your order?</p>
+                        </div>
+                      </div>
+                      <div className="checkout-email">
+                        <span>Order updates will go to</span>
+                        <strong>{profile.email}</strong>
+                      </div>
+                      <div className="checkout-fields">
+                        <label className="checkout-field">
+                          <span>Full name</span>
+                          <input name="name" autoComplete="name" required maxLength={120} defaultValue={profile.name} />
+                        </label>
+                        <label className="checkout-field">
+                          <span>Phone number</span>
+                          <input type="tel" name="phone" autoComplete="tel" inputMode="tel" required maxLength={50} />
+                        </label>
+                        <label className="checkout-field checkout-field-wide">
+                          <span>Delivery address</span>
+                          <textarea
+                            name="shipping_address"
+                            autoComplete="shipping street-address"
+                            placeholder="House number, street, barangay, city"
+                            rows={3}
+                            required
+                            maxLength={500}
+                          />
+                        </label>
+                      </div>
+                      <details className="checkout-billing">
+                        <summary>Use a different billing address</summary>
+                        <label className="checkout-field">
+                          <span>Billing address</span>
+                          <textarea
+                            name="billing_address"
+                            autoComplete="billing street-address"
+                            placeholder="House number, street, barangay, city"
+                            rows={3}
+                            maxLength={500}
+                          />
+                        </label>
+                      </details>
+                    </section>
+
+                    <section className="checkout-card" aria-labelledby="checkout-payment-title">
+                      <div className="checkout-card-heading">
+                        <span className="checkout-step-number">02</span>
+                        <div>
+                          <h2 id="checkout-payment-title">Payment method</h2>
+                          <p className="muted">Choose how you’d prefer to pay.</p>
+                        </div>
+                      </div>
+                      <div className="payment-options">
+                        <label className="payment-option">
+                          <input type="radio" name="payment_method" value="GCash (mock)" defaultChecked required />
+                          <span className="payment-option-mark" aria-hidden="true">G</span>
+                          <span className="payment-option-copy">
+                            <strong>GCash</strong>
+                            <small>Demo selection · no payment processed</small>
+                          </span>
+                        </label>
+                        <label className="payment-option">
+                          <input type="radio" name="payment_method" value="Card (mock)" />
+                          <span className="payment-option-mark" aria-hidden="true">CC</span>
+                          <span className="payment-option-copy">
+                            <strong>Credit or debit card</strong>
+                            <small>No card details are requested</small>
+                          </span>
+                        </label>
+                        <label className="payment-option">
+                          <input type="radio" name="payment_method" value="Cash on delivery" />
+                          <span className="payment-option-mark payment-option-mark-text" aria-hidden="true">COD</span>
+                          <span className="payment-option-copy">
+                            <strong>Cash on delivery</strong>
+                            <small>Payment choice saved with this demo order</small>
+                          </span>
+                        </label>
+                      </div>
+                    </section>
+                  </div>
+
+                  <aside className="checkout-summary" aria-labelledby="checkout-summary-title">
+                    <div className="checkout-summary-heading">
+                      <h2 id="checkout-summary-title">Order summary</h2>
+                      <button className="text-button" type="button" onClick={() => setPage('cart')}>
+                        Edit cart
+                      </button>
+                    </div>
+                    <ul className="checkout-items">
+                      {cartEntries.map((item) => (
+                        <li className="checkout-item" key={`${item.productId}:${item.option}`}>
+                          <ProductImage product={item.product} className="checkout-item-image" />
+                          <div className="checkout-item-info">
+                            <strong>{item.product.name}</strong>
+                            <span>{item.option} · Qty {item.quantity}</span>
+                          </div>
+                          <strong className="checkout-item-price">{money(item.unitPrice * item.quantity)}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                    <Totals subtotal={subtotal} deliveryFee={deliveryFee} total={total} />
+                    <button className="button full checkout-place-order" disabled={busy}>
+                      <span>{busy ? 'Placing your order…' : 'Place order'}</span>
+                      <strong>{money(total)}</strong>
+                    </button>
+                    <p className="checkout-demo-note">
+                      Demo checkout only. Your order is saved, but no payment is processed.
+                    </p>
+                  </aside>
+                </form>
+              </>
             )}
           </section>
         )}
@@ -995,22 +1119,9 @@ function ProductCard({
   onAdd: (product: Product) => void
   busy: boolean
 }) {
-  const fallbackPhoto = productPhotos[product.name] ?? categoryPhotos[product.category]
-  const image = product.image_url || fallbackPhoto
   return (
     <article className="product-card">
-      <img
-        className="product-image"
-        src={image}
-        alt=""
-        loading="lazy"
-        decoding="async"
-        onError={(event) => {
-          if (event.currentTarget.getAttribute('src') !== fallbackPhoto) {
-            event.currentTarget.src = fallbackPhoto
-          }
-        }}
-      />
+      <ProductImage product={product} className="product-image" />
       <span className="product-category">{product.category}</span>
       <h3>{product.name}</h3>
       <p className="muted">{product.description}</p>
@@ -1021,6 +1132,24 @@ function ProductCard({
           : <span className="muted">Sold out</span>}
       </div>
     </article>
+  )
+}
+
+function ProductImage({ product, className }: { product: Product; className: string }) {
+  const fallbackPhoto = productPhotos[product.name] ?? categoryPhotos[product.category]
+  return (
+    <img
+      className={className}
+      src={product.image_url || fallbackPhoto}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      onError={(event) => {
+        if (event.currentTarget.getAttribute('src') !== fallbackPhoto) {
+          event.currentTarget.src = fallbackPhoto
+        }
+      }}
+    />
   )
 }
 
