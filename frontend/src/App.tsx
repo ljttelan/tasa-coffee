@@ -1470,10 +1470,20 @@ function Customers({
           <tr key={customer.id}>
             <td>{customer.name}</td><td>{customer.email}</td><td>{customer.orderCount}</td>
             <td>{canManage && customer.id !== currentUserId
-              ? <select aria-label={`Role for ${customer.email}`} value={customer.role} disabled={busy} onChange={(event) => onRole(customer.id, event.target.value as Role)}>
-                  {(['customer', 'fulfillment', 'staff', 'admin'] as Role[]).map((role) => <option key={role}>{role}</option>)}
+              ? <select
+                  aria-label={`Role for ${customer.email}`}
+                  value={customer.role === 'customer' || customer.role === 'admin' ? customer.role : ''}
+                  disabled={busy}
+                  onChange={(event) => onRole(customer.id, event.target.value as Role)}
+                >
+                  {customer.role !== 'customer' && customer.role !== 'admin' && (
+                    <option value="" disabled hidden />
+                  )}
+                  {(['customer', 'admin'] as const).map((role) => <option key={role} value={role}>{role}</option>)}
                 </select>
-              : customer.role}</td>
+              : customer.role === 'customer' || customer.role === 'admin'
+                ? customer.role
+                : null}</td>
           </tr>
         ))}</tbody>
       </table>
