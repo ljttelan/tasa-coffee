@@ -25,6 +25,7 @@ import './App.css'
 type Page = 'shop' | 'cart' | 'checkout' | 'account' | 'staff'
 type StaffTab = 'Orders' | 'Inventory' | 'Customers' | 'Reports'
 type AccountTab = 'Overview' | 'Orders' | 'Profile details'
+type AccountOrderFilter = 'All orders' | 'In progress' | 'Delivered'
 type CartLine = { productId: string; option: string; quantity: number }
 type CartEntry = CartLine & { product: Product; unitPrice: number }
 type ProductDraft = Pick<Product, 'name' | 'category' | 'description' | 'price' | 'stock' | 'image_url'>
@@ -106,6 +107,7 @@ function App() {
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
   const [staffTab, setStaffTab] = useState<StaffTab>('Orders')
   const [accountTab, setAccountTab] = useState<AccountTab>('Overview')
+  const [accountOrderFilter, setAccountOrderFilter] = useState<AccountOrderFilter>('All orders')
   const [products, setProducts] = useState<Product[]>([])
   const [orders, setOrders] = useState<OrderView[]>([])
   const [customers, setCustomers] = useState<CustomerView[]>([])
@@ -460,7 +462,8 @@ function App() {
       })
       if (requestError) throw requestError
       setCart([])
-      setAccountTab('Orders')
+      setAccountTab('Overview')
+      setAccountOrderFilter('All orders')
       setPage('account')
       await refreshProducts()
       await refreshOrders()
@@ -599,6 +602,14 @@ function App() {
           : left.name.localeCompare(right.name),
     )
   const currentPage = session ? page : 'account'
+  const pendingOrders = orders.filter((order) => order.status === 'Pending')
+  const deliveredOrders = orders.filter((order) => order.status === 'Delivered')
+  const accountOrders =
+    accountOrderFilter === 'In progress'
+      ? pendingOrders
+      : accountOrderFilter === 'Delivered'
+        ? deliveredOrders
+        : orders
   const staffTabs: StaffTab[] =
     profile?.role === 'admin'
       ? ['Orders', 'Inventory', 'Customers', 'Reports']
@@ -606,7 +617,11 @@ function App() {
         ? ['Orders', 'Customers', 'Reports']
         : ['Orders']
 
-  const renderOrders = (staffView: boolean, orderList: OrderView[] = orders) => (
+  const renderOrders = (
+    staffView: boolean,
+    orderList: OrderView[] = orders,
+    emptyMessage = 'No orders yet.',
+  ) => (
     <div className="order-list">
       {orderList.map((order) => (
         <article className="order-card" key={order.id}>
@@ -675,7 +690,7 @@ function App() {
           </div>
         </article>
       ))}
-      {orderList.length === 0 && <p className="empty-state">No orders yet.</p>}
+      {orderList.length === 0 && <p className="empty-state">{emptyMessage}</p>}
     </div>
   )
 
@@ -730,6 +745,7 @@ function App() {
                     type="button"
                     onClick={(event) => {
                       setAccountTab('Orders')
+                      setAccountOrderFilter('All orders')
                       setPage('account')
                       event.currentTarget.closest('details')?.removeAttribute('open')
                     }}
@@ -1026,7 +1042,10 @@ function App() {
                         className={accountTab === tab ? 'active' : ''}
                         type="button"
                         aria-current={accountTab === tab ? 'page' : undefined}
-                        onClick={() => setAccountTab(tab)}
+                        onClick={() => {
+                          if (tab === 'Orders') setAccountOrderFilter('All orders')
+                          setAccountTab(tab)
+                        }}
                       >
                         {tab}
                       </button>
@@ -1061,19 +1080,40 @@ function App() {
                         <button className="button" type="button" onClick={() => setPage('shop')}>Shop the menu</button>
                       </section>
                       <div className="account-stats">
-                        <button className="account-stat" type="button" onClick={() => setAccountTab('Orders')}>
+                        <button
+                          className="account-stat"
+                          type="button"
+                          onClick={() => {
+                            setAccountOrderFilter('All orders')
+                            setAccountTab('Orders')
+                          }}
+                        >
                           <span>Total orders</span>
                           <strong>{orders.length}</strong>
                           <small>View order history</small>
                         </button>
-                        <button className="account-stat" type="button" onClick={() => setAccountTab('Orders')}>
+                        <button
+                          className="account-stat"
+                          type="button"
+                          onClick={() => {
+                            setAccountOrderFilter('In progress')
+                            setAccountTab('Orders')
+                          }}
+                        >
                           <span>In progress</span>
-                          <strong>{orders.filter((order) => ['Pending', 'Packing', 'Out for delivery'].includes(order.status)).length}</strong>
+                          <strong>{pendingOrders.length}</strong>
                           <small>See order updates</small>
                         </button>
-                        <button className="account-stat" type="button" onClick={() => setAccountTab('Orders')}>
+                        <button
+                          className="account-stat"
+                          type="button"
+                          onClick={() => {
+                            setAccountOrderFilter('Delivered')
+                            setAccountTab('Orders')
+                          }}
+                        >
                           <span>Delivered</span>
-                          <strong>{orders.filter((order) => order.status === 'Delivered').length}</strong>
+                          <strong>{deliveredOrders.length}</strong>
                           <small>Past deliveries</small>
                         </button>
                       </div>
@@ -1084,7 +1124,14 @@ function App() {
                             <h2>Recent orders</h2>
                           </div>
                           {orders.length > 0 && (
-                            <button className="text-button" type="button" onClick={() => setAccountTab('Orders')}>
+                            <button
+                              className="text-button"
+                              type="button"
+                              onClick={() => {
+                                setAccountOrderFilter('All orders')
+                                setAccountTab('Orders')
+                              }}
+                            >
                               View all
                             </button>
                           )}
@@ -1103,7 +1150,35 @@ function App() {
                         </div>
                         <span className="account-order-count">{orders.length} {orders.length === 1 ? 'order' : 'orders'}</span>
                       </div>
-                      {renderOrders(false)}
+                      <div className="tabs account-order-filters" role="group" aria-label="Filter order history">
+                        {(['All orders', 'In progress', 'Delivered'] as const).map((filter) => {
+                          const count = filter === 'In progress'
+                            ? pendingOrders.length
+                            : filter === 'Delivered'
+                              ? deliveredOrders.length
+                              : orders.length
+                          return (
+                            <button
+                              key={filter}
+                              className={`tab ${accountOrderFilter === filter ? 'active' : ''}`}
+                              type="button"
+                              aria-pressed={accountOrderFilter === filter}
+                              onClick={() => setAccountOrderFilter(filter)}
+                            >
+                              {filter} <span>({count})</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                      {renderOrders(
+                        false,
+                        accountOrders,
+                        accountOrderFilter === 'In progress'
+                          ? 'No pending orders right now.'
+                          : accountOrderFilter === 'Delivered'
+                            ? 'No delivered orders yet.'
+                            : 'No orders yet.',
+                      )}
                     </section>
                   )}
 
