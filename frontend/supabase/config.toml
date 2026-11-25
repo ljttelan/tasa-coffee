@@ -1,0 +1,4 @@
+project_id = "tasa-coffee"
+
+[functions.send-order-email]
+verify_jwt = true

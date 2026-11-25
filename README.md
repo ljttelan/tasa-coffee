@@ -8,10 +8,11 @@ Requirements: Node.js 22+ and a Supabase project.
 
 1. Create a Supabase project.
 2. In the Supabase SQL Editor, run [`frontend/supabase/schema.sql`](./frontend/supabase/schema.sql).
-3. Copy `frontend/.env.example` to `frontend/.env.local` and set:
+3. Then run [`frontend/supabase/migrations/20261123_evaluation_extensions.sql`](./frontend/supabase/migrations/20261123_evaluation_extensions.sql) in the SQL Editor. It extends the existing schema with categories, variants, addresses, coupons, analytics, courier tracking, and demo refund fields.
+4. Copy `frontend/.env.example` to `frontend/.env.local` and set:
    - `VITE_SUPABASE_URL` to the project URL.
    - `VITE_SUPABASE_ANON_KEY` to the project's publishable/anon key. This key is safe for browser use only because database access is protected by RLS.
-4. Run the frontend:
+5. Run the frontend:
 
    ```powershell
    cd frontend
@@ -29,6 +30,18 @@ Requirements: Node.js 22+ and a Supabase project.
 
    Never put a Supabase service-role key in the frontend or in a `VITE_` variable.
 
+## Order email setup
+
+Order emails use the `send-order-email` Supabase Edge Function and Resend. Verify a sender address or domain with Resend, then set `RESEND_API_KEY` and `RESEND_FROM_EMAIL` as Supabase Edge Function secrets in the Supabase Dashboard. Do not put either value in this repository, in chat, or in a `VITE_` variable.
+
+Install the Supabase CLI and deploy the function from the `frontend/` directory:
+
+```powershell
+supabase functions deploy send-order-email --project-ref <PROJECT_REF>
+```
+
+Email delivery is best-effort after the order is committed. A provider failure is reported separately and does not undo an order. Payment and refunds remain simulated; no real charge or refund is made.
+
 ## Vercel deployment
 
 1. Import `ljttelan/tasa-coffee` into Vercel.
@@ -40,10 +53,128 @@ Vercel automatically builds future commits pushed to the connected GitHub branch
 
 ## App features
 
-- Product search, categories, sorting, cart, and checkout
-- Supabase Auth accounts and order history
+- Product search, managed categories, product variants, sorting, persistent cart, coupons, and checkout
+- Supabase Auth accounts, editable profiles, saved addresses, and order history
 - Transactional checkout with stock locking and server-side price calculation
-- Customer cancellation and return requests
-- Role-based order, inventory, customer, and sales-report screens
+- Customer cancellation, return requests, and clearly labeled simulated refunds
+- Admin product/category/image and inventory management
+- Role-based order operations, courier assignment/tracking, customer management, and analytics
+- Optional Resend order confirmation, cancellation, fulfillment, and return emails
 
-Payment options are mock only; no real payment is processed.
+### Entity relationship diagram
+
+```mermaid
+erDiagram
+  AUTH_USERS ||--|| PROFILES : extends
+  PROFILES ||--o{ CUSTOMER_ADDRESSES : saves
+  PROFILES ||--o{ ORDERS : places
+  PROFILES o|--o{ ORDERS : fulfills
+  ORDERS ||--|{ ORDER_ITEMS : contains
+  PRODUCTS o|--o{ ORDER_ITEMS : snapshots
+  PRODUCTS ||--o{ PRODUCT_VARIANTS : offers
+  PROFILES o|--o{ STORE_EVENTS : performs
+  PRODUCTS o|--o{ STORE_EVENTS : relates_to
+
+  AUTH_USERS {
+    uuid id PK
+  }
+  PROFILES {
+    uuid id PK
+    text name
+    text email
+    text role
+  }
+  CUSTOMER_ADDRESSES {
+    uuid id PK
+    uuid user_id FK
+    text label
+    text full_address
+    boolean is_default
+  }
+  PRODUCTS {
+    uuid id PK
+    text name
+    text category
+    numeric price
+    integer stock
+    boolean active
+  }
+  PRODUCT_VARIANTS {
+    uuid id PK
+    uuid product_id FK
+    text name
+    numeric price_delta
+    boolean active
+  }
+  ORDERS {
+    uuid id PK
+    uuid user_id FK
+    uuid courier_id FK
+    text status
+    text return_status
+    text refund_status
+    text coupon_code
+    numeric total
+  }
+  ORDER_ITEMS {
+    uuid id PK
+    uuid order_id FK
+    uuid product_id FK
+    text product_name
+    text product_option
+    integer quantity
+    numeric unit_price
+  }
+  STORE_EVENTS {
+    uuid id PK
+    uuid visitor_id
+    uuid user_id FK
+    uuid product_id FK
+    text event_type
+    timestamptz created_at
+  }
+```
+
+`product_categories.name` and `coupons.code` are logical values stored on products/orders; the current schema does not enforce them as foreign keys.
+
+### Use-case diagram
+
+```mermaid
+flowchart LR
+  Customer([Customer])
+  Admin([Administrator])
+  Staff([Store staff])
+  Courier([Fulfillment courier])
+  Auth[(Supabase Auth)]
+  Resend[(Resend email)]
+  Payment[Payment gateway<br/>not integrated]
+
+  subgraph Store["Tasa Coffee storefront"]
+    Browse[Browse and search catalog]
+    Cart[Manage cart and apply coupon]
+    Checkout[Place demo order]
+    Account[Manage profile and addresses]
+    History[View orders, cancel, request return]
+    CatalogAdmin[Manage products, variants, categories, inventory]
+    Operations[Manage orders, customers, and reports]
+    Delivery[View assigned orders, update delivery, set tracking]
+    Notifications[Send order and return notifications]
+  end
+
+  Customer --> Browse
+  Customer --> Cart
+  Customer --> Checkout
+  Customer --> Account
+  Customer --> History
+  Admin --> CatalogAdmin
+  Admin --> Operations
+  Staff --> Operations
+  Courier --> Delivery
+  Account --> Auth
+  Checkout --> Auth
+  Checkout -. "mock payment only" .-> Payment
+  Checkout --> Notifications
+  Operations --> Notifications
+  History --> Notifications
+  Notifications --> Resend
+```
