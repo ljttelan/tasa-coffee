@@ -31,6 +31,8 @@ type Page = 'shop' | 'cart' | 'checkout' | 'account' | 'staff' | 'track'
 type StaffTab = 'Orders' | 'Inventory' | 'Customers' | 'Reports'
 type AccountTab = 'Overview' | 'Orders' | 'Profile details'
 type AccountOrderFilter = 'All orders' | 'In progress' | 'Delivered'
+type ProductSort = 'relevance' | 'low' | 'high' | 'popularity'
+type ProductPriceRange = 'all' | 'under-100' | '100-150' | 'above-150'
 type CartLine = { productId: string; option: string; quantity: number }
 type CartEntry = CartLine & { product: Product; unitPrice: number }
 type ProductDraft = Pick<Product, 'name' | 'category' | 'description' | 'price' | 'stock' | 'image_url'>
@@ -130,6 +132,10 @@ function App() {
   const [trackedOrder, setTrackedOrder] = useState<TrackedOrder | null>(null)
   const [trackingError, setTrackingError] = useState('')
   const [trackingBusy, setTrackingBusy] = useState(false)
+  const [trackingDialogOrderId, setTrackingDialogOrderId] = useState<string | null>(null)
+  const [trackingDialogDetails, setTrackingDialogDetails] = useState<TrackedOrder | null>(null)
+  const [trackingDialogError, setTrackingDialogError] = useState('')
+  const [trackingDialogLoading, setTrackingDialogLoading] = useState(false)
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<ProductCategory[]>(
     initialCategories.map((name) => ({ name, active: true, created_at: '' })),
@@ -147,11 +153,15 @@ function App() {
   const [quickAddQuantity, setQuickAddQuantity] = useState(1)
   const quickAddDialog = useRef<HTMLDialogElement>(null)
   const loginDialog = useRef<HTMLDialogElement>(null)
+  const trackingDialog = useRef<HTMLDialogElement>(null)
+  const trackingDialogRequest = useRef(0)
   const pendingLoginAdd = useRef(false)
-  const menuScrollPending = useRef(false)
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState<'All' | Category>('All')
-  const [sort, setSort] = useState<'name' | 'low' | 'high'>('name')
+  const [sort, setSort] = useState<ProductSort>('relevance')
+  const [priceRange, setPriceRange] = useState<ProductPriceRange>('all')
+  const [productPopularity, setProductPopularity] = useState<Record<string, number>>({})
+  const [popularityError, setPopularityError] = useState('')
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [couponInput, setCouponInput] = useState('')
   const [appliedCoupon, setAppliedCoupon] = useState('')
@@ -196,6 +206,20 @@ function App() {
     }
   }
 
+  const refreshProductPopularity = useCallback(async () => {
+    if (!supabase) return
+    try {
+      const { data, error: requestError } = await supabase.rpc('get_product_popularity')
+      if (requestError) throw requestError
+      setProductPopularity(
+        Object.fromEntries((data ?? []).map((item) => [item.product_id, Number(item.popularity)])),
+      )
+      setPopularityError('')
+    } catch (reason) {
+      setPopularityError(getErrorMessage(reason))
+    }
+  }, [])
+
   const trackEvent = useCallback(async (
     eventType: StoreEvent['event_type'],
     productId: string | null = null,
@@ -229,11 +253,7 @@ function App() {
 
   const navigateToMenu = () => {
     setShopNavTarget('menu')
-    if (page === 'shop') {
-      document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })
-      return
-    }
-    menuScrollPending.current = true
+    void refreshProductPopularity()
     navigateTo('shop')
   }
 
@@ -281,11 +301,44 @@ function App() {
     }
   }
 
-  useEffect(() => {
-    if (page !== 'shop' || !menuScrollPending.current) return
-    menuScrollPending.current = false
-    document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })
-  }, [page])
+  const openTrackingDialog = async (order: OrderView) => {
+    const requestId = ++trackingDialogRequest.current
+    const client = supabase
+    setTrackingDialogOrderId(order.id)
+    setTrackingDialogDetails(null)
+    setTrackingDialogError('')
+    setTrackingDialogLoading(Boolean(client))
+    setError('')
+    setNotice('')
+    trackingDialog.current?.showModal()
+
+    if (!client) {
+      setTrackingDialogError('Order tracking is unavailable until the store is connected to Supabase.')
+      return
+    }
+
+    try {
+      const { data, error: requestError } = await client.rpc('track_order', {
+        p_order_number: formatOrderNumber(order.id),
+      })
+      if (requestError) throw requestError
+      if (requestId !== trackingDialogRequest.current) return
+      const details = data?.[0]
+      if (!details) {
+        setTrackingDialogError('We could not load tracking details for this order.')
+        return
+      }
+      setTrackingDialogDetails(details)
+    } catch (reason) {
+      if (requestId === trackingDialogRequest.current) {
+        setTrackingDialogError(getErrorMessage(reason))
+      }
+    } finally {
+      if (requestId === trackingDialogRequest.current) {
+        setTrackingDialogLoading(false)
+      }
+    }
+  }
 
   useEffect(() => {
     void trackEvent('catalog_view').catch((reason) => {
@@ -628,7 +681,9 @@ function App() {
       : [...cart, { productId: product.id, option, quantity: quantityToAdd }])
     setAppliedCoupon('')
     setCouponDiscount(0)
-    void trackEvent('add_to_cart', product.id).catch(showError)
+    void trackEvent('add_to_cart', product.id)
+      .then(refreshProductPopularity)
+      .catch(showError)
     setError('')
     setNotice(`${quantityToAdd} × ${product.name} added to your cart.`)
     return true
@@ -865,7 +920,8 @@ function App() {
 
   const assignCourier = async (orderId: string, courierId: string) => {
     const client = supabase
-    if (!client) return
+    if (!client) return false
+    let saved = false
     await runAction(async () => {
       const { error: requestError } = await client.rpc('assign_courier', {
         p_order_id: orderId,
@@ -873,12 +929,15 @@ function App() {
       })
       if (requestError) throw requestError
       await refreshOrders()
+      saved = true
     }, 'Courier assignment updated.')
+    return saved
   }
 
   const saveTrackingNumber = async (orderId: string, trackingNumber: string) => {
     const client = supabase
-    if (!client) return
+    if (!client) return false
+    let saved = false
     await runAction(async () => {
       const { error: requestError } = await client.rpc('set_tracking_number', {
         p_order_id: orderId,
@@ -886,7 +945,9 @@ function App() {
       })
       if (requestError) throw requestError
       await refreshOrders()
+      saved = true
     }, 'Tracking details updated.')
+    return saved
   }
 
   const saveProfile = async (event: FormEvent<HTMLFormElement>) => {
@@ -1144,18 +1205,34 @@ function App() {
     }, 'Account role updated.')
   }
 
+  const searchQuery = search.trim().toLowerCase()
+  const relevanceScore = (product: Product) => {
+    if (!searchQuery) return 0
+    const name = product.name.toLowerCase()
+    const description = product.description.toLowerCase()
+    return (name === searchQuery ? 3 : name.includes(searchQuery) ? 2 : 0) +
+      (description.includes(searchQuery) ? 1 : 0)
+  }
   const visibleProducts = products
     .filter((product) => product.active && (category === 'All' || product.category === category))
+    .filter((product) => {
+      if (priceRange === 'under-100') return product.price < 100
+      if (priceRange === '100-150') return product.price >= 100 && product.price <= 150
+      if (priceRange === 'above-150') return product.price > 150
+      return true
+    })
     .filter((product) =>
-      `${product.name} ${product.description}`.toLowerCase().includes(search.toLowerCase()),
+      `${product.name} ${product.description}`.toLowerCase().includes(searchQuery),
     )
-    .sort((left, right) =>
-      sort === 'low'
-        ? left.price - right.price
-        : sort === 'high'
-          ? right.price - left.price
-          : left.name.localeCompare(right.name),
-    )
+    .sort((left, right) => {
+      if (sort === 'low') return left.price - right.price || left.name.localeCompare(right.name)
+      if (sort === 'high') return right.price - left.price || left.name.localeCompare(right.name)
+      if (sort === 'popularity') {
+        return (productPopularity[right.id] ?? 0) - (productPopularity[left.id] ?? 0) ||
+          left.name.localeCompare(right.name)
+      }
+      return relevanceScore(right) - relevanceScore(left) || left.name.localeCompare(right.name)
+    })
   const currentPage = page
   const pendingOrders = orders.filter((order) => order.status === 'Pending')
   const deliveredOrders = orders.filter((order) => order.status === 'Delivered')
@@ -1165,6 +1242,8 @@ function App() {
       : accountOrderFilter === 'Delivered'
         ? deliveredOrders
         : orders
+  const trackingDialogOrder =
+    orders.find((order) => order.id === trackingDialogOrderId) ?? null
   const staffTabs: StaffTab[] =
     profile?.role === 'admin'
       ? ['Orders', 'Inventory', 'Customers', 'Reports']
@@ -1222,6 +1301,14 @@ function App() {
             {!staffView && order.return_status !== 'None' && (
               <span className="muted">Return: {order.return_status} · Refund: {order.refund_status}</span>
             )}
+            <button
+              type="button"
+              className="button secondary small"
+              disabled={trackingDialogLoading}
+              onClick={() => void openTrackingDialog(order)}
+            >
+              Tracking details
+            </button>
             {staffView && nextStatuses(order.status).length > 0 &&
               (profile?.role !== 'fulfillment' ||
                 (order.courier_id === profile.id && ['Packing', 'Out for delivery'].includes(order.status))) && (
@@ -1242,39 +1329,6 @@ function App() {
                 </select>
               </label>
             )}
-            {staffView && (profile?.role === 'admin' || profile?.role === 'staff') && (
-              <label className="inline-control">
-                Courier
-                <select
-                  value={order.courier_id ?? ''}
-                  disabled={busy}
-                  onChange={(event) => void assignCourier(order.id, event.target.value)}
-                >
-                  <option value="">Unassigned</option>
-                  {couriers.map((courier) => (
-                    <option key={courier.id} value={courier.id}>{courier.name} · {courier.email}</option>
-                  ))}
-                </select>
-              </label>
-            )}
-            {staffView &&
-              (profile?.role === 'admin' || profile?.role === 'staff' ||
-                (profile?.role === 'fulfillment' && order.courier_id === profile.id)) && (
-                <form
-                  className="tracking-form"
-                  onSubmit={(event) => {
-                    event.preventDefault()
-                    const form = new FormData(event.currentTarget)
-                    void saveTrackingNumber(order.id, String(form.get('tracking_number') ?? '').trim())
-                  }}
-                >
-                  <label>
-                    Tracking number
-                    <input name="tracking_number" maxLength={80} defaultValue={order.tracking_number ?? ''} />
-                  </label>
-                  <button className="button small" disabled={busy}>Save tracking</button>
-                </form>
-              )}
             {staffView && order.return_status === 'Requested' && profile?.role === 'admin' && (
               <>
                 <button className="button small" disabled={busy} onClick={() => void reviewReturn(order.id, 'Approved')}>
@@ -1460,48 +1514,116 @@ function App() {
           </div>
         )}
 
-        {currentPage === 'shop' && (
-          <>
+        {currentPage === 'shop' && shopNavTarget === 'home' && (
             <section className="hero">
               <div className="hero-copy">
                 <span className="eyebrow">MASARAP NA KAPE. MAGANDANG SAMAHAN.</span>
                 <h1>Fresh from the roaster</h1>
                 <p>Filipino beans, comforting brews, and treats for the moments in between.</p>
+                <button className="button hero-menu-button" type="button" onClick={navigateToMenu}>
+                  Explore the menu
+                </button>
               </div>
               <div className="hero-art" aria-hidden="true"><span>☕</span><b>Made with<br />mahal.</b></div>
             </section>
-            <section id="products" className="section">
-              <div className="section-heading">
-                <div><span className="eyebrow">THE TASA MENU</span><h2>Find your new favorite</h2></div>
-                <p className="muted">Free delivery on orders over ₱1,000</p>
-              </div>
-              <div className="filters">
-                <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search coffee, pastries, gear" aria-label="Search products" />
-                <select value={category} onChange={(event) => setCategory(event.target.value as 'All' | Category)} aria-label="Filter by category">
-                  <option value="All">All categories</option>
-                  {categories.filter((item) => item.active).map((item) => <option key={item.name}>{item.name}</option>)}
-                </select>
-                <select value={sort} onChange={(event) => setSort(event.target.value as typeof sort)} aria-label="Sort products">
-                  <option value="name">Name</option><option value="low">Price: low to high</option><option value="high">Price: high to low</option>
-                </select>
-              </div>
-              {loading ? <p className="empty-state">Connecting to Tasa Coffee…</p> : (
-                <div className="product-grid">
-                  {visibleProducts.map((product) => (
-                    <ProductCard key={product.id} product={product} onAdd={openQuickAdd} busy={busy} />
-                  ))}
-                  {visibleProducts.length === 0 && <p className="empty-state">No products match your search.</p>}
+        )}
+
+        {currentPage === 'shop' && shopNavTarget === 'menu' && (
+          <section id="products" className="section menu-page">
+            <div className="section-heading">
+              <div><span className="eyebrow">THE TASA MENU</span><h1>Find your new favorite</h1></div>
+              <p className="muted">Free delivery on orders over ₱1,000</p>
+            </div>
+            <div className="menu-layout">
+              <aside className="menu-filter-panel" aria-label="Menu filters">
+                <fieldset className="menu-filter-group">
+                  <legend>Sort by</legend>
+                  <div className="menu-filter-options">
+                    {([
+                      ['relevance', 'Relevance'],
+                      ['low', 'Price: Low to High'],
+                      ['high', 'Price: High to Low'],
+                      ['popularity', 'Popularity'],
+                    ] as const).map(([value, label]) => (
+                      <label className={`menu-filter-radio${sort === value ? ' is-selected' : ''}`} key={value}>
+                        <input
+                          type="radio"
+                          name="product-sort"
+                          value={value}
+                          checked={sort === value}
+                          onChange={() => setSort(value)}
+                        />
+                        <span>{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+                <fieldset className="menu-filter-group">
+                  <legend>Price range</legend>
+                  <div className="menu-filter-options">
+                    {([
+                      ['all', 'All Prices'],
+                      ['under-100', 'Under ₱100'],
+                      ['100-150', '₱100 – ₱150'],
+                      ['above-150', 'Above ₱150'],
+                    ] as const).map(([value, label]) => (
+                      <label className={`menu-filter-radio${priceRange === value ? ' is-selected' : ''}`} key={value}>
+                        <input
+                          type="radio"
+                          name="product-price-range"
+                          value={value}
+                          checked={priceRange === value}
+                          onChange={() => setPriceRange(value)}
+                        />
+                        <span>{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              </aside>
+              <div className="menu-content">
+                <div className="menu-search-tools">
+                  <input
+                    type="search"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search coffee, pastries, gear"
+                    aria-label="Search products"
+                  />
+                  <select
+                    value={category}
+                    onChange={(event) => setCategory(event.target.value as 'All' | Category)}
+                    aria-label="Filter by category"
+                  >
+                    <option value="All">All categories</option>
+                    {categories.filter((item) => item.active).map((item) => <option key={item.name}>{item.name}</option>)}
+                  </select>
                 </div>
-              )}
-            </section>
-          </>
+                {popularityError && (
+                  <p className="menu-filter-notice" role="alert">
+                    Popularity sorting is unavailable: {popularityError}
+                  </p>
+                )}
+                {loading ? <p className="empty-state">Connecting to Tasa Coffee…</p> : (
+                  <div className="product-grid">
+                    {visibleProducts.map((product) => (
+                      <ProductCard key={product.id} product={product} onAdd={openQuickAdd} busy={busy} />
+                    ))}
+                    {visibleProducts.length === 0 && (
+                      <p className="empty-state">No products match these filters. Try changing your search or filters.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
         )}
 
         {currentPage === 'cart' && (
           <section className="section narrow">
             <span className="eyebrow">YOUR ORDER</span><h1>Your cart</h1>
             {cartEntries.length === 0 ? (
-              <><p className="muted">Your cart is empty.</p><button className="button" onClick={() => navigateTo('shop')}>Browse the menu</button></>
+              <><p className="muted">Your cart is empty.</p><button className="button" onClick={navigateToMenu}>Browse the menu</button></>
             ) : (
               <>
                 {cartEntries.map((item) => (
@@ -1579,7 +1701,7 @@ function App() {
                 <span className="eyebrow">YOUR ORDER</span>
                 <h1>Checkout</h1>
                 <p className="muted">Your cart is empty.</p>
-                <button className="button" onClick={() => setPage('shop')}>Browse the menu</button>
+                <button className="button" onClick={navigateToMenu}>Browse the menu</button>
               </>
             ) : (
               <>
@@ -1880,7 +2002,7 @@ function App() {
                           <h2>{profile.name.split(' ')[0]}</h2>
                           <p>Ready for your next cup? Browse the menu whenever you’re ready.</p>
                         </div>
-                        <button className="button" type="button" onClick={() => setPage('shop')}>Shop the menu</button>
+                        <button className="button" type="button" onClick={navigateToMenu}>Shop the menu</button>
                       </section>
                       <div className="account-stats">
                         <button
@@ -2223,8 +2345,101 @@ function App() {
         )}
       </dialog>
 
+      <dialog
+        ref={trackingDialog}
+        className="tracking-dialog"
+        aria-labelledby="tracking-dialog-title"
+        onClose={() => {
+          trackingDialogRequest.current += 1
+          setTrackingDialogOrderId(null)
+          setTrackingDialogDetails(null)
+          setTrackingDialogError('')
+          setTrackingDialogLoading(false)
+        }}
+      >
+        <div className="quick-add-heading">
+          <div>
+            <span className="eyebrow">ORDER TRACKING</span>
+            <h2 id="tracking-dialog-title">Tracking details</h2>
+          </div>
+          <button
+            type="button"
+            className="quick-add-close"
+            aria-label="Close tracking details"
+            onClick={() => trackingDialog.current?.close()}
+          >
+            ×
+          </button>
+        </div>
+        {trackingDialogLoading && <p className="muted" role="status">Loading tracking details…</p>}
+        {trackingDialogError && <p className="tracking-dialog-error" role="alert">{trackingDialogError}</p>}
+        {error && <p className="tracking-dialog-error" role="alert">{error}</p>}
+        {notice && <p className="tracking-dialog-success" role="status">{notice}</p>}
+        {trackingDialogDetails && <TrackingResult order={trackingDialogDetails} />}
+        {trackingDialogOrder && (
+          <section className="tracking-edit-panel">
+            <div>
+              <span className="eyebrow">STAFF CONTROLS</span>
+              <h3>Update delivery details</h3>
+            </div>
+            {(profile?.role === 'admin' || profile?.role === 'staff') && (
+              <label>
+                Courier
+                <select
+                  value={trackingDialogOrder.courier_id ?? ''}
+                  disabled={busy}
+                  onChange={async (event) => {
+                    const courierId = event.currentTarget.value
+                    const saved = await assignCourier(trackingDialogOrder.id, courierId)
+                    if (saved) {
+                      const courierName = couriers.find((courier) => courier.id === courierId)?.name ?? null
+                      setTrackingDialogDetails((details) =>
+                        details ? { ...details, courier_name: courierName } : details,
+                      )
+                    }
+                  }}
+                >
+                  <option value="">Unassigned</option>
+                  {couriers.map((courier) => (
+                    <option key={courier.id} value={courier.id}>{courier.name} · {courier.email}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {(profile?.role === 'admin' || profile?.role === 'staff' ||
+              (profile?.role === 'fulfillment' && trackingDialogOrder.courier_id === profile.id)) && (
+              <form
+                key={`${trackingDialogOrder.id}:${trackingDialogOrder.tracking_number ?? ''}`}
+                className="tracking-edit-form"
+                onSubmit={async (event) => {
+                  event.preventDefault()
+                  const form = new FormData(event.currentTarget)
+                  const trackingNumber = String(form.get('tracking_number') ?? '').trim()
+                  const saved = await saveTrackingNumber(trackingDialogOrder.id, trackingNumber)
+                  if (saved) {
+                    setTrackingDialogDetails((details) =>
+                      details ? { ...details, tracking_number: trackingNumber || null } : details,
+                    )
+                  }
+                }}
+              >
+                <label>
+                  Tracking number
+                  <input name="tracking_number" maxLength={80} defaultValue={trackingDialogOrder.tracking_number ?? ''} />
+                </label>
+                <button className="button small" disabled={busy}>Save tracking</button>
+              </form>
+            )}
+          </section>
+        )}
+      </dialog>
+
       <footer className="site-footer">
-        <a className="brand" href="#" onClick={(event) => { event.preventDefault(); navigateTo('shop') }}>
+        <a className="brand" href="#" onClick={(event) => {
+          event.preventDefault()
+          setShopNavTarget('home')
+          navigateTo('shop')
+        }}>
           <img className="brand-mark" src="/tasa-mark.svg" alt="" /><span>Tasa</span>
         </a>
         <span>Kape ng Pilipino, para sa bawat sandali.</span>

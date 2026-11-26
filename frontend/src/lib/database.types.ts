@@ -263,6 +263,10 @@ export type Database = {
         Returns: undefined
       }
       track_order: { Args: { p_order_number: string }; Returns: TrackedOrder[] }
+      get_product_popularity: {
+        Args: Record<string, never>
+        Returns: { product_id: string; popularity: number }[]
+      }
       get_my_role: { Args: Record<string, never>; Returns: string }
       is_staff: { Args: Record<string, never>; Returns: boolean }
       is_admin: { Args: Record<string, never>; Returns: boolean }

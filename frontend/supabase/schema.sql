@@ -483,6 +483,21 @@ begin
 end;
 $$;
 
+create or replace function public.get_product_popularity()
+returns table (product_id uuid, popularity bigint)
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select e.product_id, count(*)::bigint
+  from public.store_events e
+  join public.products p on p.id = e.product_id and p.active
+  where e.event_type = 'add_to_cart'
+    and e.created_at >= now() - interval '30 days'
+  group by e.product_id
+$$;
+
 revoke all on function public.get_my_role() from public;
 revoke all on function public.is_staff() from public;
 revoke all on function public.is_admin() from public;
@@ -494,6 +509,7 @@ revoke all on function public.request_return(uuid) from public;
 revoke all on function public.set_order_status(uuid, text) from public;
 revoke all on function public.review_return(uuid, text) from public;
 revoke all on function public.track_order(text) from public;
+revoke all on function public.get_product_popularity() from public;
 
 grant execute on function public.get_my_role() to anon, authenticated;
 grant execute on function public.is_staff() to anon, authenticated;
@@ -504,6 +520,7 @@ grant execute on function public.request_return(uuid) to authenticated;
 grant execute on function public.set_order_status(uuid, text) to authenticated;
 grant execute on function public.review_return(uuid, text) to authenticated;
 grant execute on function public.track_order(text) to anon, authenticated;
+grant execute on function public.get_product_popularity() to anon, authenticated;
 
 insert into public.products (name, category, description, price, stock) values
   ('Benguet Arabica Beans', 'Beans', 'Bright, nutty, medium roast.', 450.00, 30),

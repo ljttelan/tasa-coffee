@@ -8,7 +8,7 @@ Requirements: Node.js 22+ and a Supabase project.
 
 1. Create a Supabase project.
 2. In the Supabase SQL Editor, run [`frontend/supabase/schema.sql`](./frontend/supabase/schema.sql).
-3. Then run [`frontend/supabase/migrations/20261123_evaluation_extensions.sql`](./frontend/supabase/migrations/20261123_evaluation_extensions.sql) and [`frontend/supabase/migrations/20261126_public_order_tracking.sql`](./frontend/supabase/migrations/20261126_public_order_tracking.sql) in the SQL Editor. These add the storefront extensions and secure public order lookup.
+3. Then run [`frontend/supabase/migrations/20261123_evaluation_extensions.sql`](./frontend/supabase/migrations/20261123_evaluation_extensions.sql), [`frontend/supabase/migrations/20261126_public_order_tracking.sql`](./frontend/supabase/migrations/20261126_public_order_tracking.sql), and [`frontend/supabase/migrations/20261127_menu_popularity.sql`](./frontend/supabase/migrations/20261127_menu_popularity.sql) in the SQL Editor. These add the storefront extensions, secure public order lookup, and product popularity sorting.
 4. Copy `frontend/.env.example` to `frontend/.env.local` and set:
    - `VITE_SUPABASE_URL` to the project URL.
    - `VITE_SUPABASE_ANON_KEY` to the project's publishable/anon key. This key is safe for browser use only because database access is protected by RLS.
