@@ -119,6 +119,7 @@ function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [page, setPage] = useState<Page>('shop')
+  const [shopNavTarget, setShopNavTarget] = useState<'home' | 'menu'>('home')
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
   const [staffTab, setStaffTab] = useState<StaffTab>('Orders')
   const [accountTab, setAccountTab] = useState<AccountTab>('Overview')
@@ -141,6 +142,7 @@ function App() {
   const quickAddDialog = useRef<HTMLDialogElement>(null)
   const loginDialog = useRef<HTMLDialogElement>(null)
   const pendingLoginAdd = useRef(false)
+  const menuScrollPending = useRef(false)
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState<'All' | Category>('All')
   const [sort, setSort] = useState<'name' | 'low' | 'high'>('name')
@@ -218,6 +220,29 @@ function App() {
     }
     setPage(nextPage)
   }
+
+  const navigateToMenu = () => {
+    setShopNavTarget('menu')
+    if (page === 'shop') {
+      document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })
+      return
+    }
+    menuScrollPending.current = true
+    navigateTo('shop')
+  }
+
+  const openOrders = (filter: AccountOrderFilter) => {
+    setAccountTab('Orders')
+    setAccountOrderFilter(filter)
+    if (!session) setAuthMode('login')
+    navigateTo('account')
+  }
+
+  useEffect(() => {
+    if (page !== 'shop' || !menuScrollPending.current) return
+    menuScrollPending.current = false
+    document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })
+  }, [page])
 
   useEffect(() => {
     void trackEvent('catalog_view').catch((reason) => {
@@ -1230,88 +1255,156 @@ function App() {
   return (
     <div className={`app-shell ${currentPage === 'staff' ? 'staff-shell' : 'customer-shell'}`}>
       <header className="site-header">
-        <a className="brand" href="#" onClick={(event) => { event.preventDefault(); navigateTo('shop') }}>
+        <a className="brand" href="#" onClick={(event) => {
+          event.preventDefault()
+          setShopNavTarget('home')
+          navigateTo('shop')
+        }}>
           <img className="brand-mark" src="/tasa-mark.svg" alt="" />
           <span>Tasa<small>Kape ng Pilipino, para sa bawat sandali.</small></span>
         </a>
-        <nav aria-label="Main navigation">
-          <button className="nav-link" onClick={() => navigateTo('shop')}>Shop</button>
-          <button className="nav-link" onClick={() => navigateTo('cart')}>Cart <span className="cart-count">{cartCount}</span></button>
+        <nav className="site-nav" aria-label="Main navigation">
+          <button
+            className={`nav-link ${currentPage === 'shop' && shopNavTarget === 'home' ? 'active' : ''}`}
+            aria-current={currentPage === 'shop' && shopNavTarget === 'home' ? 'page' : undefined}
+            onClick={() => {
+              setShopNavTarget('home')
+              navigateTo('shop')
+            }}
+          >
+            Home
+          </button>
+          <button
+            className={`nav-link ${currentPage === 'shop' && shopNavTarget === 'menu' ? 'active' : ''}`}
+            aria-current={currentPage === 'shop' && shopNavTarget === 'menu' ? 'page' : undefined}
+            onClick={navigateToMenu}
+          >
+            Menu
+          </button>
+          <button
+            className={`nav-link ${currentPage === 'account' && accountTab === 'Orders' && accountOrderFilter !== 'In progress' ? 'active' : ''}`}
+            aria-current={currentPage === 'account' && accountTab === 'Orders' && accountOrderFilter !== 'In progress' ? 'page' : undefined}
+            onClick={() => openOrders('All orders')}
+          >
+            My Orders
+          </button>
+          <button
+            className={`nav-link ${currentPage === 'account' && accountTab === 'Orders' && accountOrderFilter === 'In progress' ? 'active' : ''}`}
+            aria-current={currentPage === 'account' && accountTab === 'Orders' && accountOrderFilter === 'In progress' ? 'page' : undefined}
+            onClick={() => openOrders('In progress')}
+          >
+            Track Order
+          </button>
+        </nav>
+        <div className="header-actions">
+          <button
+            className="header-icon-button"
+            type="button"
+            aria-label="Order updates"
+            title="Order updates"
+            onClick={() => openOrders('In progress')}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
+              <path d="M10 21h4" />
+            </svg>
+          </button>
+          <button
+            className="header-icon-button cart-icon-button"
+            type="button"
+            aria-label={`Cart, ${cartCount} ${cartCount === 1 ? 'item' : 'items'}`}
+            title="Cart"
+            onClick={() => navigateTo('cart')}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 4h2l2.2 11.2a2 2 0 0 0 2 1.6h8.5a2 2 0 0 0 1.9-1.4L22 8H6" />
+              <circle cx="10" cy="20" r="1" />
+              <circle cx="18" cy="20" r="1" />
+            </svg>
+            {cartCount > 0 && <span className="icon-count" aria-hidden="true">{cartCount}</span>}
+          </button>
           {session ? (
-            <>
-              {profile && profile.role !== 'customer' && (
-                <button className="nav-link" onClick={() => setPage('staff')}>Staff</button>
-              )}
-              <details className="account-menu">
-                <summary className="account-trigger" aria-label="Open account menu">
-                  <span className="account-avatar account-avatar-small" aria-hidden="true">
+            <details className="account-menu">
+              <summary className="account-trigger header-icon-button" aria-label="Open account menu" title="Account">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="8" r="3.5" />
+                  <path d="M5 20c.6-3.5 3.2-5.5 7-5.5s6.4 2 7 5.5" />
+                </svg>
+              </summary>
+              <div className="account-menu-panel">
+                <div className="account-menu-identity">
+                  <span className="account-avatar" aria-hidden="true">
                     {profile?.name.trim().charAt(0).toUpperCase() || 'A'}
                   </span>
-                  <span className="account-trigger-copy">
-                    <strong>Account</strong>
-                    <small>{profile?.name.split(' ')[0] || 'Profile & orders'}</small>
+                  <span>
+                    <strong>{profile?.name || 'My account'}</strong>
+                    <small>{profile?.email || 'Manage your Tasa account'}</small>
                   </span>
-                  <span className="account-chevron" aria-hidden="true">⌄</span>
-                </summary>
-                <div className="account-menu-panel">
-                  <div className="account-menu-identity">
-                    <span className="account-avatar" aria-hidden="true">
-                      {profile?.name.trim().charAt(0).toUpperCase() || 'A'}
-                    </span>
-                    <span>
-                      <strong>{profile?.name || 'My account'}</strong>
-                      <small>{profile?.email || 'Manage your Tasa account'}</small>
-                    </span>
-                  </div>
-                  <button
-                    className="account-menu-item"
-                    type="button"
-                    onClick={(event) => {
-                      setAccountTab('Overview')
-                      navigateTo('account')
-                      event.currentTarget.closest('details')?.removeAttribute('open')
-                    }}
-                  >
-                    My account
-                  </button>
-                  <button
-                    className="account-menu-item"
-                    type="button"
-                    onClick={(event) => {
-                      setAccountTab('Orders')
-                      setAccountOrderFilter('All orders')
-                      navigateTo('account')
-                      event.currentTarget.closest('details')?.removeAttribute('open')
-                    }}
-                  >
-                    My orders
-                  </button>
-                  <button
-                    className="account-menu-item account-menu-signout"
-                    type="button"
-                    disabled={busy}
-                    onClick={(event) => {
-                      event.currentTarget.closest('details')?.removeAttribute('open')
-                      void signOut()
-                    }}
-                  >
-                    Sign out
-                  </button>
                 </div>
-              </details>
-            </>
+                {profile && profile.role !== 'customer' && (
+                  <button
+                    className="account-menu-item"
+                    type="button"
+                    onClick={(event) => {
+                      navigateTo('staff')
+                      event.currentTarget.closest('details')?.removeAttribute('open')
+                    }}
+                  >
+                    Staff
+                  </button>
+                )}
+                <button
+                  className="account-menu-item"
+                  type="button"
+                  onClick={(event) => {
+                    setAccountTab('Overview')
+                    navigateTo('account')
+                    event.currentTarget.closest('details')?.removeAttribute('open')
+                  }}
+                >
+                  My account
+                </button>
+                <button
+                  className="account-menu-item"
+                  type="button"
+                  onClick={(event) => {
+                    openOrders('All orders')
+                    event.currentTarget.closest('details')?.removeAttribute('open')
+                  }}
+                >
+                  My orders
+                </button>
+                <button
+                  className="account-menu-item account-menu-signout"
+                  type="button"
+                  disabled={busy}
+                  onClick={(event) => {
+                    event.currentTarget.closest('details')?.removeAttribute('open')
+                    void signOut()
+                  }}
+                >
+                  Sign out
+                </button>
+              </div>
+            </details>
           ) : (
             <button
-              className="nav-link"
+              className="header-icon-button"
+              type="button"
+              aria-label="Account"
+              title="Account"
               onClick={() => {
                 setAuthMode('login')
                 navigateTo('account')
               }}
             >
-              Log in
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="8" r="3.5" />
+                <path d="M5 20c.6-3.5 3.2-5.5 7-5.5s6.4 2 7 5.5" />
+              </svg>
             </button>
           )}
-        </nav>
+        </div>
       </header>
 
       <main className="container">
