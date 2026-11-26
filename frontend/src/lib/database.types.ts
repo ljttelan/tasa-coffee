@@ -106,6 +106,22 @@ export type OrderItem = {
   created_at: string
 }
 
+export type TrackedOrder = Pick<
+  Order,
+  | 'id'
+  | 'created_at'
+  | 'status'
+  | 'tracking_number'
+  | 'shipping_address'
+  | 'payment_method'
+  | 'subtotal'
+  | 'delivery_fee'
+  | 'total'
+> & {
+  courier_name: string | null
+  items: Array<Pick<OrderItem, 'product_name' | 'product_option' | 'quantity' | 'unit_price'>>
+}
+
 type Table<Row, Insert, Update> = {
   Row: Row
   Insert: Insert
@@ -246,6 +262,7 @@ export type Database = {
         Args: { p_order_id: string; p_decision: 'Approved' | 'Rejected' }
         Returns: undefined
       }
+      track_order: { Args: { p_order_number: string }; Returns: TrackedOrder[] }
       get_my_role: { Args: Record<string, never>; Returns: string }
       is_staff: { Args: Record<string, never>; Returns: boolean }
       is_admin: { Args: Record<string, never>; Returns: boolean }

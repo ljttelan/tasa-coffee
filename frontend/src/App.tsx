@@ -23,10 +23,11 @@ import type {
   Profile,
   Role,
   StoreEvent,
+  TrackedOrder,
 } from './lib/database.types'
 import './App.css'
 
-type Page = 'shop' | 'cart' | 'checkout' | 'account' | 'staff'
+type Page = 'shop' | 'cart' | 'checkout' | 'account' | 'staff' | 'track'
 type StaffTab = 'Orders' | 'Inventory' | 'Customers' | 'Reports'
 type AccountTab = 'Overview' | 'Orders' | 'Profile details'
 type AccountOrderFilter = 'All orders' | 'In progress' | 'Delivered'
@@ -56,6 +57,7 @@ const categoryPhotos: Record<Category, string> = {
 }
 const money = (amount: number) =>
   new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount)
+const formatOrderNumber = (id: string) => `TASA-${id.replace(/-/g, '').toUpperCase()}`
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : 'The request could not be completed.'
 
@@ -124,6 +126,10 @@ function App() {
   const [staffTab, setStaffTab] = useState<StaffTab>('Orders')
   const [accountTab, setAccountTab] = useState<AccountTab>('Overview')
   const [accountOrderFilter, setAccountOrderFilter] = useState<AccountOrderFilter>('All orders')
+  const [trackingNumber, setTrackingNumber] = useState('')
+  const [trackedOrder, setTrackedOrder] = useState<TrackedOrder | null>(null)
+  const [trackingError, setTrackingError] = useState('')
+  const [trackingBusy, setTrackingBusy] = useState(false)
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<ProductCategory[]>(
     initialCategories.map((name) => ({ name, active: true, created_at: '' })),
@@ -236,6 +242,43 @@ function App() {
     setAccountOrderFilter(filter)
     if (!session) setAuthMode('login')
     navigateTo('account')
+  }
+
+  const findOrder = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setTrackingError('')
+    setTrackedOrder(null)
+
+    const orderNumber = trackingNumber.trim()
+    const compactNumber = orderNumber.replace(/^TASA-/i, '').replace(/-/g, '')
+    if (!/^[0-9a-f]{32}$/i.test(compactNumber)) {
+      setTrackingError('Enter the complete Tasa order number from your confirmation email.')
+      return
+    }
+
+    const client = supabase
+    if (!client) {
+      setTrackingError('Order tracking is unavailable until the store is connected to Supabase.')
+      return
+    }
+
+    setTrackingBusy(true)
+    try {
+      const { data, error: requestError } = await client.rpc('track_order', {
+        p_order_number: `TASA-${compactNumber.toUpperCase()}`,
+      })
+      if (requestError) throw requestError
+      const foundOrder = data?.[0]
+      if (!foundOrder) {
+        setTrackingError('We couldn’t find that order. Check the number and try again.')
+        return
+      }
+      setTrackedOrder(foundOrder)
+    } catch (reason) {
+      setTrackingError(getErrorMessage(reason))
+    } finally {
+      setTrackingBusy(false)
+    }
   }
 
   useEffect(() => {
@@ -1138,7 +1181,7 @@ function App() {
       {orderList.map((order) => (
         <article className="order-card" key={order.id}>
           <div className="order-heading">
-            <strong>#{order.id.slice(0, 8).toUpperCase()}{staffView ? ` · ${order.customer_name}` : ''}</strong>
+            <strong>{formatOrderNumber(order.id)}{staffView ? ` · ${order.customer_name}` : ''}</strong>
             <span className="status">{order.status}</span>
           </div>
           <p className="muted">
@@ -1289,9 +1332,9 @@ function App() {
             My Orders
           </button>
           <button
-            className={`nav-link ${currentPage === 'account' && accountTab === 'Orders' && accountOrderFilter === 'In progress' ? 'active' : ''}`}
-            aria-current={currentPage === 'account' && accountTab === 'Orders' && accountOrderFilter === 'In progress' ? 'page' : undefined}
-            onClick={() => openOrders('In progress')}
+            className={`nav-link ${currentPage === 'track' ? 'active' : ''}`}
+            aria-current={currentPage === 'track' ? 'page' : undefined}
+            onClick={() => navigateTo('track')}
           >
             Track Order
           </button>
@@ -1302,7 +1345,7 @@ function App() {
             type="button"
             aria-label="Order updates"
             title="Order updates"
-            onClick={() => openOrders('In progress')}
+            onClick={() => navigateTo('track')}
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
@@ -1708,6 +1751,38 @@ function App() {
                 </form>
               </>
             )}
+          </section>
+        )}
+
+        {currentPage === 'track' && (
+          <section className="section tracking-page">
+            <header className="tracking-hero">
+              <span className="eyebrow">ORDER UPDATES</span>
+              <h1>Track your order</h1>
+              <p>See where your order is, who is delivering it and when it arrives.</p>
+            </header>
+            <form className="tracking-search" onSubmit={(event) => void findOrder(event)}>
+              <label className="sr-only" htmlFor="order-number-search">Order number</label>
+              <input
+                id="order-number-search"
+                name="order_number"
+                autoComplete="off"
+                value={trackingNumber}
+                disabled={trackingBusy}
+                onChange={(event) => {
+                  setTrackingNumber(event.target.value)
+                  setTrackingError('')
+                  setTrackedOrder(null)
+                }}
+                placeholder="Find an order by its number"
+                aria-describedby={trackingError ? 'tracking-error' : undefined}
+              />
+              <button className="button" type="submit" disabled={trackingBusy}>
+                {trackingBusy ? 'Finding…' : 'Find'}
+              </button>
+            </form>
+            {trackingError && <p className="tracking-error" id="tracking-error" role="alert">{trackingError}</p>}
+            {trackedOrder && <TrackingResult order={trackedOrder} />}
           </section>
         )}
 
@@ -2180,6 +2255,103 @@ function ProductCard({
           : <span className="muted">Sold out</span>}
       </div>
     </article>
+  )
+}
+
+function TrackingResult({ order }: { order: TrackedOrder }) {
+  const stages = [
+    { status: 'Pending', title: 'Order placed', detail: 'We have received your order.' },
+    { status: 'Packing', title: 'Preparing', detail: 'The café is preparing your items.' },
+    { status: 'Out for delivery', title: 'On the way', detail: 'Your order is on its way to you.' },
+    { status: 'Delivered', title: 'Delivered', detail: 'Your order has arrived.' },
+  ] as const
+  const stageIndex = stages.findIndex((stage) => stage.status === order.status)
+  const isException = order.status === 'Cancelled' || order.status === 'Returned'
+  const paymentStatus = order.payment_method === 'Cash on delivery'
+    ? order.status === 'Delivered' ? 'Paid on delivery' : 'Due on delivery'
+    : 'Demo payment'
+  const placedDate = new Date(order.created_at).toLocaleDateString('en-PH', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+
+  return (
+    <div className="tracking-result">
+      <article className="tracking-card tracking-progress-card">
+        <div className="tracking-order-heading">
+          <div>
+            <span className="eyebrow">ORDER STATUS</span>
+            <h2>{formatOrderNumber(order.id)}</h2>
+            <p className="muted">Placed {placedDate}</p>
+          </div>
+          <span className={`tracking-status ${isException ? 'is-exception' : ''}`}>{order.status}</span>
+        </div>
+        {isException ? (
+          <p className="tracking-exception">
+            This order is {order.status.toLowerCase()}. Please contact Tasa if you need help with it.
+          </p>
+        ) : (
+          <ol className="tracking-timeline">
+            {stages.map((stage, index) => {
+              const complete = index <= stageIndex
+              return (
+                <li
+                  className={`tracking-stage${complete ? ' is-complete' : ''}${index === stageIndex ? ' is-current' : ''}`}
+                  key={stage.status}
+                >
+                  <span className="tracking-stage-marker" aria-hidden="true">{complete ? '✓' : index + 1}</span>
+                  <div>
+                    <strong>{stage.title}</strong>
+                    <p className="muted">{stage.detail}</p>
+                  </div>
+                </li>
+              )
+            })}
+          </ol>
+        )}
+        <div className="tracking-details-grid">
+          <div>
+            <span className="tracking-detail-label">Courier</span>
+            <strong>{order.courier_name || 'Not assigned yet'}</strong>
+          </div>
+          <div>
+            <span className="tracking-detail-label">Tracking number</span>
+            <strong>{order.tracking_number || 'Available once dispatched'}</strong>
+          </div>
+          <div className="tracking-address">
+            <span className="tracking-detail-label">Delivery address</span>
+            <strong>{order.shipping_address}</strong>
+          </div>
+        </div>
+      </article>
+
+      <aside className="tracking-card tracking-summary-card">
+        <span className="eyebrow">ORDER SUMMARY</span>
+        <h2>What’s in this order</h2>
+        <ul className="tracking-items">
+          {order.items.map((item, index) => (
+            <li key={`${item.product_name}-${item.product_option}-${index}`}>
+              <span className="tracking-item-quantity">{item.quantity}×</span>
+              <span className="tracking-item-name">
+                <strong>{item.product_name}</strong>
+                {item.product_option && <small>{item.product_option}</small>}
+              </span>
+              <strong>{money(item.unit_price * item.quantity)}</strong>
+            </li>
+          ))}
+        </ul>
+        <dl className="tracking-totals">
+          <div><dt>Subtotal</dt><dd>{money(order.subtotal)}</dd></div>
+          <div><dt>Delivery fee</dt><dd>{money(order.delivery_fee)}</dd></div>
+          <div className="tracking-total"><dt>Total</dt><dd>{money(order.total)}</dd></div>
+        </dl>
+        <div className="tracking-payment">
+          <span>Payment · {order.payment_method}</span>
+          <strong>{paymentStatus}</strong>
+        </div>
+      </aside>
+    </div>
   )
 }
 

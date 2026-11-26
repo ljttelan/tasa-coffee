@@ -8,7 +8,7 @@ Requirements: Node.js 22+ and a Supabase project.
 
 1. Create a Supabase project.
 2. In the Supabase SQL Editor, run [`frontend/supabase/schema.sql`](./frontend/supabase/schema.sql).
-3. Then run [`frontend/supabase/migrations/20261123_evaluation_extensions.sql`](./frontend/supabase/migrations/20261123_evaluation_extensions.sql) in the SQL Editor. It extends the existing schema with categories, variants, addresses, coupons, analytics, courier tracking, and demo refund fields.
+3. Then run [`frontend/supabase/migrations/20261123_evaluation_extensions.sql`](./frontend/supabase/migrations/20261123_evaluation_extensions.sql) and [`frontend/supabase/migrations/20261126_public_order_tracking.sql`](./frontend/supabase/migrations/20261126_public_order_tracking.sql) in the SQL Editor. These add the storefront extensions and secure public order lookup.
 4. Copy `frontend/.env.example` to `frontend/.env.local` and set:
    - `VITE_SUPABASE_URL` to the project URL.
    - `VITE_SUPABASE_ANON_KEY` to the project's publishable/anon key. This key is safe for browser use only because database access is protected by RLS.
@@ -32,7 +32,7 @@ Requirements: Node.js 22+ and a Supabase project.
 
 ## Order email setup
 
-Order emails use the `send-order-email` Supabase Edge Function and Resend. Verify a sender address or domain with Resend, then set `RESEND_API_KEY` and `RESEND_FROM_EMAIL` as Supabase Edge Function secrets in the Supabase Dashboard. Do not put either value in this repository, in chat, or in a `VITE_` variable.
+Order emails use the `send-order-email` Supabase Edge Function and Resend. Confirmation emails include the full order number used by the Track Order page. Verify a sender address or domain with Resend, then set `RESEND_API_KEY` and `RESEND_FROM_EMAIL` as Supabase Edge Function secrets in the Supabase Dashboard. Do not put either value in this repository, in chat, or in a `VITE_` variable.
 
 Install the Supabase CLI and deploy the function from the `frontend/` directory:
 
@@ -55,6 +55,7 @@ Vercel automatically builds future commits pushed to the connected GitHub branch
 
 - Product search, managed categories, product variants, sorting, persistent cart, coupons, and checkout
 - Supabase Auth accounts, editable profiles, saved addresses, and order history
+- Public order tracking using a full, unguessable order reference; only the tracking RPC exposes the details needed by the page
 - Transactional checkout with stock locking and server-side price calculation
 - Customer cancellation, return requests, and clearly labeled simulated refunds
 - Admin product/category/image and inventory management

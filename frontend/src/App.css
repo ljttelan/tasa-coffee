@@ -376,8 +376,54 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 
 .order-card { margin: 12px 0; padding: 17px; }
 .order-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.order-heading > strong { min-width: 0; overflow-wrap: anywhere; }
 .order-card p { margin: 8px 0; }
 .order-items { margin: 8px 0; padding-left: 20px; }
+.tracking-page { max-width: 1080px; margin: 0 auto; padding-top: 44px; }
+.tracking-hero { margin: 0 0 24px; text-align: center; }
+.tracking-hero h1 { margin: 8px 0; }
+.tracking-hero p { margin: 0; color: var(--muted); }
+.tracking-search { display: flex; max-width: 680px; gap: 10px; margin: 0 auto 34px; }
+.tracking-search input { min-height: 48px; flex: 1; border-radius: 12px; }
+.tracking-search .button { min-width: 100px; border-radius: 12px; }
+.tracking-error { max-width: 680px; margin: -20px auto 26px; color: #a33030; font-size: .9rem; }
+.tracking-result { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, .75fr); align-items: start; gap: 18px; }
+.tracking-card { min-width: 0; border: 1px solid rgba(91, 62, 40, .14); border-radius: 20px; padding: clamp(20px, 3vw, 28px); background: var(--surface); box-shadow: 0 8px 24px rgba(67, 45, 28, .055); }
+.tracking-order-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.tracking-order-heading h2 { margin: 6px 0 4px; overflow-wrap: anywhere; font-size: clamp(1.25rem, 3vw, 1.65rem); }
+.tracking-order-heading p { margin: 0; font-size: .88rem; }
+.tracking-status { flex: none; border-radius: 99px; padding: 7px 12px; background: #f5e9b5; color: #433711; font-size: .78rem; font-weight: 800; }
+.tracking-status.is-exception { background: #fff0ef; color: #8d2929; }
+.tracking-timeline { display: grid; gap: 0; margin: 28px 0; padding: 0; list-style: none; }
+.tracking-stage { position: relative; display: grid; min-height: 69px; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; }
+.tracking-stage:not(:last-child)::after { position: absolute; top: 33px; bottom: -1px; left: 16px; width: 2px; background: var(--line); content: ''; }
+.tracking-stage.is-complete:not(:last-child)::after { background: #8c6b47; }
+.tracking-stage-marker { z-index: 1; display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); color: var(--muted); font-size: .82rem; font-weight: 800; }
+.tracking-stage.is-complete .tracking-stage-marker { border-color: #8c6b47; background: #8c6b47; color: #fff; }
+.tracking-stage.is-current .tracking-stage-marker { outline: 3px solid rgba(140, 107, 71, .18); }
+.tracking-stage strong { display: block; padding-top: 3px; }
+.tracking-stage p { margin: 4px 0 0; font-size: .84rem; }
+.tracking-exception { margin: 24px 0; border-radius: 12px; padding: 14px; background: #fff6f4; color: #8d2929; }
+.tracking-details-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 17px; border-top: 1px solid var(--line); padding-top: 19px; }
+.tracking-details-grid > div { display: grid; min-width: 0; gap: 5px; }
+.tracking-detail-label { color: var(--muted); font-size: .8rem; }
+.tracking-details-grid strong { overflow-wrap: anywhere; font-size: .9rem; }
+.tracking-address { grid-column: 1 / -1; }
+.tracking-summary-card h2 { margin: 7px 0 18px; font-size: 1.3rem; }
+.tracking-items { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.tracking-items li { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: start; gap: 10px; font-size: .88rem; }
+.tracking-item-quantity { color: var(--muted); font-weight: 700; }
+.tracking-item-name { display: grid; gap: 3px; }
+.tracking-item-name small { color: var(--muted); }
+.tracking-items li > strong { white-space: nowrap; }
+.tracking-totals { display: grid; gap: 11px; margin: 22px 0 16px; padding: 17px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.tracking-totals > div { display: flex; justify-content: space-between; gap: 12px; font-size: .9rem; }
+.tracking-totals dt { color: var(--muted); }
+.tracking-totals dd { margin: 0; font-weight: 700; }
+.tracking-totals .tracking-total { padding-top: 7px; font-size: 1rem; }
+.tracking-totals .tracking-total dt { color: var(--ink); font-weight: 800; }
+.tracking-payment { display: grid; gap: 5px; font-size: .85rem; }
+.tracking-payment span { color: var(--muted); }
 .status { display: inline-flex; border-radius: 99px; padding: 4px 11px; background: #f5e9b5; color: #433711; font-size: .8rem; font-weight: 700; }
 .order-actions, .inline-actions, .table-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-top: 10px; }
 .inline-control { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: .9rem; }
@@ -443,6 +489,7 @@ button:not(:disabled):active { transform: translateY(0); }
   .account-layout { grid-template-columns: 1fr; }
   .account-sidebar { position: static; }
   .account-side-nav { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+  .tracking-result { grid-template-columns: 1fr; }
 }
 @media (max-width: 520px) {
   .container { width: min(100% - 24px, 1120px); }
@@ -467,6 +514,9 @@ button:not(:disabled):active { transform: translateY(0); }
   .account-welcome { align-items: flex-start; flex-direction: column; }
   .account-panel { padding: 16px; }
   .account-details-list > div { grid-template-columns: 1fr; gap: 5px; }
+  .tracking-page { padding-top: 30px; }
+  .tracking-search { align-items: stretch; flex-direction: column; margin-bottom: 30px; }
+  .tracking-search .button { width: 100%; }
 }
 
 @media (max-width: 640px) {
@@ -482,6 +532,9 @@ button:not(:disabled):active { transform: translateY(0); }
   .stats { grid-template-columns: 1fr; }
   .order-heading { align-items: flex-start; flex-wrap: wrap; }
   .order-heading > strong { min-width: 0; overflow-wrap: anywhere; }
+  .tracking-order-heading { flex-direction: column; }
+  .tracking-details-grid { grid-template-columns: 1fr; }
+  .tracking-address { grid-column: auto; }
   .quick-add-dialog, .auth-dialog { padding: 18px; }
 }
 

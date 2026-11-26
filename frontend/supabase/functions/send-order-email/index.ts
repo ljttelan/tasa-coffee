@@ -154,6 +154,7 @@ Deno.serve(async (request) => {
       return_update: `Your return status is ${order.return_status}. Any refund shown in your account is demo-only; no real payment was processed.`,
     }
     const items = (itemsResult.data ?? []) as OrderItem[]
+    const orderNumber = `TASA-${order.id.replace(/-/g, '').toUpperCase()}`
     const itemMarkup = items.map((item) =>
       `<li>${escapeHtml(String(item.quantity))} × ${escapeHtml(item.product_name)} (${escapeHtml(item.product_option)}) — ₱${Number(item.unit_price * item.quantity).toFixed(2)}</li>`,
     ).join('')
@@ -161,10 +162,10 @@ Deno.serve(async (request) => {
       `<h1>${escapeHtml(subjects[eventType as EmailEvent])}</h1>`,
       `<p>Hi ${escapeHtml(order.customer_name)},</p>`,
       `<p>${escapeHtml(descriptions[eventType as EmailEvent])}</p>`,
-      `<p>Order <strong>#${escapeHtml(order.id.slice(0, 8).toUpperCase())}</strong> · ${escapeHtml(order.status)}</p>`,
+      `<p>Order <strong>${escapeHtml(orderNumber)}</strong> · ${escapeHtml(order.status)}</p>`,
       `<ul>${itemMarkup}</ul>`,
       `<p>Total: <strong>₱${Number(order.total).toFixed(2)}</strong></p>`,
-      '<p>You can review your order from your Tasa Coffee account.</p>',
+      '<p>Use this order number on the Track Order page to see the latest delivery details.</p>',
     ].join('')
 
     const resendResponse = await fetch('https://api.resend.com/emails', {
