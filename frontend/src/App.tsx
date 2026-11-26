@@ -154,6 +154,7 @@ function App() {
   const quickAddDialog = useRef<HTMLDialogElement>(null)
   const loginDialog = useRef<HTMLDialogElement>(null)
   const trackingDialog = useRef<HTMLDialogElement>(null)
+  const cartDialog = useRef<HTMLDialogElement>(null)
   const trackingDialogRequest = useRef(0)
   const pendingLoginAdd = useRef(false)
   const [search, setSearch] = useState('')
@@ -262,6 +263,18 @@ function App() {
     setAccountOrderFilter(filter)
     if (!session) setAuthMode('login')
     navigateTo('account')
+  }
+
+  const openCartDialog = () => cartDialog.current?.showModal()
+
+  const goToCheckout = () => {
+    cartDialog.current?.close()
+    if (session) {
+      navigateTo('checkout')
+    } else {
+      setAuthMode('login')
+      navigateTo('account')
+    }
   }
 
   const findOrder = async (event: FormEvent<HTMLFormElement>) => {
@@ -1411,7 +1424,9 @@ function App() {
             type="button"
             aria-label={`Cart, ${cartCount} ${cartCount === 1 ? 'item' : 'items'}`}
             title="Cart"
-            onClick={() => navigateTo('cart')}
+            aria-haspopup="dialog"
+            aria-controls="cart-preview-dialog"
+            onClick={openCartDialog}
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M3 4h2l2.2 11.2a2 2 0 0 0 2 1.6h8.5a2 2 0 0 0 1.9-1.4L22 8H6" />
@@ -2339,6 +2354,105 @@ function App() {
                 }}
               >
                 Add to cart
+              </button>
+            </div>
+          </>
+        )}
+      </dialog>
+
+      <dialog
+        ref={cartDialog}
+        id="cart-preview-dialog"
+        className="cart-dialog"
+        aria-labelledby="cart-dialog-title"
+      >
+        <div className="quick-add-heading">
+          <div>
+            <span className="eyebrow">YOUR ORDER</span>
+            <h2 id="cart-dialog-title">Your cart</h2>
+            <p className="muted">{cartCount} {cartCount === 1 ? 'item' : 'items'}</p>
+          </div>
+          <button
+            type="button"
+            className="quick-add-close"
+            aria-label="Close cart"
+            onClick={() => cartDialog.current?.close()}
+          >
+            ×
+          </button>
+        </div>
+        {cartEntries.length === 0 ? (
+          <div className="cart-dialog-empty">
+            <p className="muted">Your cart is empty.</p>
+            <button
+              type="button"
+              className="button"
+              onClick={() => {
+                cartDialog.current?.close()
+                navigateToMenu()
+              }}
+            >
+              Browse the menu
+            </button>
+          </div>
+        ) : (
+          <>
+            <ul className="cart-dialog-items">
+              {cartEntries.map((item) => (
+                <li className="cart-dialog-item" key={`${item.productId}:${item.option}`}>
+                  <ProductImage product={item.product} className="cart-dialog-item-image" />
+                  <div className="cart-dialog-item-info">
+                    <strong>{item.product.name}</strong>
+                    <span>{item.option} · {money(item.unitPrice)} each</span>
+                    <div className="quantity-control">
+                      <button
+                        type="button"
+                        aria-label={`Remove one ${item.product.name}`}
+                        onClick={() => updateCart(item, item.quantity - 1)}
+                      >
+                        −
+                      </button>
+                      <span aria-label={`Quantity ${item.quantity}`}>{item.quantity}</span>
+                      <button
+                        type="button"
+                        aria-label={`Add one ${item.product.name}`}
+                        disabled={item.quantity >= item.product.stock}
+                        onClick={() => updateCart(item, item.quantity + 1)}
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                  <strong className="cart-dialog-item-total">{money(item.unitPrice * item.quantity)}</strong>
+                </li>
+              ))}
+            </ul>
+            {appliedCoupon && <p className="muted cart-dialog-coupon">Applied: {appliedCoupon}</p>}
+            <Totals
+              subtotal={subtotal}
+              deliveryFee={deliveryFee}
+              discount={couponDiscount}
+              couponCode={appliedCoupon}
+              total={total}
+            />
+            <div className="cart-dialog-actions">
+              <button
+                type="button"
+                className="button full"
+                disabled={cartEntries.length === 0 || busy}
+                onClick={goToCheckout}
+              >
+                Go to checkout
+              </button>
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => {
+                  cartDialog.current?.close()
+                  navigateTo('cart')
+                }}
+              >
+                View full cart
               </button>
             </div>
           </>
