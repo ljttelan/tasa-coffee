@@ -155,6 +155,7 @@ function App() {
   const loginDialog = useRef<HTMLDialogElement>(null)
   const trackingDialog = useRef<HTMLDialogElement>(null)
   const cartDialog = useRef<HTMLDialogElement>(null)
+  const cartButton = useRef<HTMLButtonElement>(null)
   const trackingDialogRequest = useRef(0)
   const pendingLoginAdd = useRef(false)
   const [search, setSearch] = useState('')
@@ -177,6 +178,31 @@ function App() {
   const [loading, setLoading] = useState(Boolean(supabase))
   const [busy, setBusy] = useState(false)
   const cartCount = cart.reduce((total, item) => total + item.quantity, 0)
+
+  useEffect(() => {
+    const closeCartOnOutsidePointer = (event: PointerEvent) => {
+      const dialog = cartDialog.current
+      const target = event.target
+      if (
+        dialog?.open &&
+        target instanceof Node &&
+        !dialog.contains(target) &&
+        !cartButton.current?.contains(target)
+      ) {
+        dialog.close()
+      }
+    }
+    const closeCartOnViewportChange = () => cartDialog.current?.close()
+
+    document.addEventListener('pointerdown', closeCartOnOutsidePointer)
+    window.addEventListener('scroll', closeCartOnViewportChange)
+    window.addEventListener('resize', closeCartOnViewportChange)
+    return () => {
+      document.removeEventListener('pointerdown', closeCartOnOutsidePointer)
+      window.removeEventListener('scroll', closeCartOnViewportChange)
+      window.removeEventListener('resize', closeCartOnViewportChange)
+    }
+  }, [])
 
   const showError = (reason: unknown) => {
     setError(getErrorMessage(reason))
@@ -265,7 +291,22 @@ function App() {
     navigateTo('account')
   }
 
-  const openCartDialog = () => cartDialog.current?.showModal()
+  const openCartDialog = () => {
+    const dialog = cartDialog.current
+    const button = cartButton.current
+    if (!dialog || !button) return
+    if (dialog.open) {
+      dialog.close()
+      return
+    }
+
+    dialog.show()
+    const buttonRect = button.getBoundingClientRect()
+    const dialogHeight = dialog.getBoundingClientRect().height
+    const top = Math.max(12, Math.min(buttonRect.bottom + 8, window.innerHeight - dialogHeight - 12))
+    dialog.style.top = `${top}px`
+    dialog.style.right = `${Math.max(12, window.innerWidth - buttonRect.right)}px`
+  }
 
   const goToCheckout = () => {
     cartDialog.current?.close()
@@ -1420,6 +1461,7 @@ function App() {
             </svg>
           </button>
           <button
+            ref={cartButton}
             className="header-icon-button cart-icon-button"
             type="button"
             aria-label={`Cart, ${cartCount} ${cartCount === 1 ? 'item' : 'items'}`}
@@ -2366,7 +2408,7 @@ function App() {
         className="cart-dialog"
         aria-labelledby="cart-dialog-title"
       >
-        <div className="quick-add-heading">
+        <div className="cart-popover-heading">
           <div>
             <span className="eyebrow">YOUR ORDER</span>
             <h2 id="cart-dialog-title">Your cart</h2>

@@ -276,10 +276,10 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 
 .quick-add-dialog { width: min(440px, calc(100% - 32px)); max-width: none; max-height: calc(100% - 32px); overflow-y: auto; border: 1px solid var(--line); border-radius: 20px; padding: 24px; color: var(--ink); background: var(--surface); box-shadow: 0 24px 80px rgba(20, 12, 35, .28); }
 .quick-add-dialog::backdrop { background: rgba(25, 19, 34, .58); backdrop-filter: blur(2px); }
-.cart-dialog { width: min(560px, calc(100% - 32px)); max-width: none; max-height: calc(100% - 32px); overflow-y: auto; border: 1px solid var(--line); border-radius: 20px; padding: clamp(18px, 4vw, 26px); color: var(--ink); background: var(--surface); box-shadow: 0 24px 80px rgba(20, 12, 35, .28); }
-.cart-dialog::backdrop { background: rgba(25, 19, 34, .58); backdrop-filter: blur(2px); }
-.cart-dialog .quick-add-heading h2 { margin: 4px 0; font-size: 1.5rem; }
-.cart-dialog .quick-add-heading p { margin: 0; font-size: .88rem; }
+.cart-dialog { position: fixed; inset: auto; z-index: 40; width: min(390px, calc(100vw - 24px)); max-width: none; max-height: calc(100vh - 24px); overflow-y: auto; margin: 0; transform: none; border: 1px solid var(--line); border-top: 3px solid var(--yellow); border-radius: 14px; padding: 16px; color: var(--ink); background: var(--surface); box-shadow: 0 12px 36px rgba(20, 12, 35, .2); }
+.cart-popover-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.cart-popover-heading h2 { margin: 4px 0; font-size: 1.35rem; }
+.cart-popover-heading p { margin: 0; font-size: .88rem; }
 .cart-dialog-items { display: grid; gap: 16px; max-height: min(45vh, 360px); overflow-y: auto; margin: 20px 0 0; padding: 0; list-style: none; }
 .cart-dialog-item { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); padding-bottom: 15px; }
 .cart-dialog-item-image { width: 64px; height: 64px; border-radius: 12px; object-fit: cover; background: #f3eadc; }
